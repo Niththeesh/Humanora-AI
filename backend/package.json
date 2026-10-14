@@ -6,22 +6,38 @@
   "scripts": {
     "dev": "ts-node src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "ts-node tests/api.test.ts",
+    "test:security": "ts-node tests/security_isolation.test.ts",
+    "test:samples": "ts-node tests/writing_quality_10_samples.test.ts",
+    "test:browser": "node tests/browser_automation.test.js",
+    "test:qa": "ts-node tests/quality_assurance.test.ts",
+    "test:quality": "ts-node tests/writing_quality_evaluation.test.ts",
+    "test:live": "ts-node tests/final_verification.ts",
+    "test:all": "ts-node tests/api.test.ts && ts-node tests/security_isolation.test.ts && ts-node tests/quality_assurance.test.ts && ts-node tests/writing_quality_10_samples.test.ts && node tests/browser_automation.test.js"
   },
-  "keywords": ["ai", "humanizer", "text-rewriting"],
+
+  "keywords": [
+    "ai",
+    "humanizer",
+    "text-rewriting"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
+    "@google/genai": "^2.28.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "axios": "^1.6.0"
+    "express": "^4.18.2"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.15",
     "@types/express": "^4.17.20",
     "@types/node": "^20.8.0",
-    "@types/cors": "^2.8.15",
-    "typescript": "^5.2.2",
-    "ts-node": "^10.9.1"
+    "puppeteer-core": "^25.14.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
   }
 }

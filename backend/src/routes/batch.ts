@@ -46,9 +46,12 @@ router.post('/', async (req: Request, res: Response) => {
 
         const normalizedTone = Math.max(0, Math.min(1, doc.tone || 0.5))
         const normalizedComplexity = Math.max(0, Math.min(1, doc.complexity || 0.5))
-        const mode = ['standard', 'advanced', 'academic', 'creative'].includes(doc.mode)
-          ? doc.mode
-          : 'standard'
+        const validModes = [
+          'natural', 'academic', 'professional', 'casual', 'concise',
+          'expand', 'grammar', 'tone', 'paraphrase', 'summary',
+          'standard', 'advanced', 'creative'
+        ]
+        const mode = validModes.includes(doc.mode) ? doc.mode : 'natural'
 
         const humanizedText = humanizationService.humanize(
           cleanText,

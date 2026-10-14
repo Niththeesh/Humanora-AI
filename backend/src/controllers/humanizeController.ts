@@ -1,9 +1,9 @@
 import { Request, Response } from 'express'
-import { humanizationService } from '../services/serviceFactory'
+import { geminiService } from '../services/geminiService'
+import { databaseService } from '../services/databaseService'
 
-// Simple in-memory cache for frequently used transformations
 const responseCache = new Map<string, any>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000
 
 function getCacheKey(text: string, mode: string): string {
   return `${mode}:${text.substring(0, 100)}`
@@ -11,9 +11,17 @@ function getCacheKey(text: string, mode: string): string {
 
 export const humanizeText = async (req: Request, res: Response) => {
   try {
-    const { text, mode, tone, complexity, vocabulary, highlights } = req.body
+    const { 
+      text, 
+      mode, 
+      tone, 
+      complexity, 
+      vocabulary, 
+      highlights, 
+      sessionId,
+      authorVoice 
+    } = req.body
 
-    // Validation
     if (!text || typeof text !== 'string') {
       return res.status(400).json({
         error: 'Invalid input',
@@ -35,15 +43,9 @@ export const humanizeText = async (req: Request, res: Response) => {
       })
     }
 
-    // Sanitize and process
     const cleanText = text.trim()
-    const normalizedTone = Math.max(0, Math.min(1, tone || 0.5))
-    const normalizedComplexity = Math.max(0, Math.min(1, complexity || 0.5))
-    const selectedMode = ['standard', 'advanced', 'academic', 'creative'].includes(mode)
-      ? mode
-      : 'standard'
+    const selectedMode = mode || 'standard'
 
-    // Check cache for faster response
     const cacheKey = getCacheKey(cleanText, selectedMode)
     if (responseCache.has(cacheKey)) {
       const cached = responseCache.get(cacheKey)
@@ -54,50 +56,64 @@ export const humanizeText = async (req: Request, res: Response) => {
       }
     }
 
-    // Call humanization service
-    const humanizedText = humanizationService.humanize(
-      cleanText,
-      selectedMode,
-      normalizedTone,
-      normalizedComplexity,
-      vocabulary || false
-    )
-
-    // Build response
-    const result: any = {
-      humanizedText,
-      originalText: cleanText,
+    const transformResult = await geminiService.transform({
+      text: cleanText,
       mode: selectedMode,
+      tone: tone,
+      intensity: complexity && complexity > 0.6 ? 'deep' : complexity && complexity < 0.4 ? 'subtle' : 'balanced',
+      vocabulary: Boolean(vocabulary),
+      highlights: Boolean(highlights),
+      authorVoice: authorVoice
+    })
+
+    const result: any = {
+      humanizedText: transformResult.humanizedText,
+      originalText: transformResult.originalText,
+      mode: transformResult.mode,
+      engine: transformResult.engine,
+      model: transformResult.model,
       parameters: {
-        tone: normalizedTone,
-        complexity: normalizedComplexity,
-        vocabulary,
+        tone: transformResult.parameters.tone,
+        complexity: complexity ?? 0.5,
+        vocabulary: transformResult.parameters.vocabulary,
+        authorVoice: transformResult.parameters.authorVoice
       },
       stats: {
-        originalLength: cleanText.length,
-        humanizedLength: humanizedText.length,
-        originalWords: cleanText.split(/\s+/).length,
-        humanizedWords: humanizedText.split(/\s+/).length,
+        originalLength: transformResult.stats.originalLength,
+        humanizedLength: transformResult.stats.humanizedLength,
+        originalWords: transformResult.stats.originalWords,
+        humanizedWords: transformResult.stats.humanizedWords,
         processingTime: Date.now(),
       },
+      changesExplanation: transformResult.changesExplanation,
+      factualIntegrity: transformResult.factualIntegrity,
+      warning: transformResult.warning,
+      highlights: transformResult.highlights || []
     }
 
-    if (highlights) {
-      result.highlights = findImprovements(cleanText, humanizedText)
-    }
+    databaseService.saveTransformation({
+      sessionId: typeof sessionId === 'string' ? sessionId : undefined,
+      mode: transformResult.mode,
+      tone: transformResult.parameters.tone,
+      originalText: transformResult.originalText,
+      humanizedText: transformResult.humanizedText,
+      originalWords: transformResult.stats.originalWords,
+      humanizedWords: transformResult.stats.humanizedWords,
+      originalChars: transformResult.stats.originalLength,
+      humanizedChars: transformResult.stats.humanizedLength,
+      engine: transformResult.engine,
+      modelVersion: transformResult.model,
+      latencyMs: transformResult.stats.processingTimeMs
+    }).catch(err => console.warn('[humanizeController] Background save warning:', err))
 
-    // Cache the result
     responseCache.set(cacheKey, {
       data: result,
       timestamp: Date.now()
     })
 
-    // Clean old cache entries (simple cleanup)
     if (responseCache.size > 100) {
       const firstKey = responseCache.keys().next().value
-      if (firstKey) {
-        responseCache.delete(firstKey)
-      }
+      if (firstKey) responseCache.delete(firstKey)
     }
 
     res.json(result)
@@ -108,28 +124,4 @@ export const humanizeText = async (req: Request, res: Response) => {
       message: 'An error occurred while processing your text',
     })
   }
-}
-
-/**
- * Find and highlight improvements made during humanization
- */
-function findImprovements(original: string, humanized: string): any[] {
-  const improvements: any[] = []
-
-  // Simple comparison to highlight changed passages
-  const origWords = original.split(/\s+/)
-  const humanWords = humanized.split(/\s+/)
-
-  for (let i = 0; i < Math.min(origWords.length, humanWords.length); i++) {
-    if (origWords[i] !== humanWords[i]) {
-      improvements.push({
-        index: i,
-        original: origWords[i],
-        improved: humanWords[i],
-        type: 'word',
-      })
-    }
-  }
-
-  return improvements.slice(0, 20) // Return first 20 improvements
 }

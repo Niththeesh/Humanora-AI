@@ -1,6 +1,14 @@
 import React, { useState } from 'react'
 import { DualPreview } from './DualPreview'
 import { MetricsDisplay } from './MetricsDisplay'
+import { AcademicReportData } from './AcademicReportModal'
+
+export interface FactualIntegrityReport {
+  verified: boolean
+  missingEntities: string[]
+  preservedEntities: string[]
+  warnings: string[]
+}
 
 interface OutputSectionProps {
   text: string
@@ -9,8 +17,17 @@ interface OutputSectionProps {
   isDark: boolean
   showHighlights: boolean
   stats?: any
+  engine?: string
+  model?: string
+  warning?: string
+  changesExplanation?: string[]
+  factualIntegrity?: FactualIntegrityReport
   showMetrics?: boolean
   showDualPreview?: boolean
+  onTextChange?: (newText: string) => void
+  // Academic Capabilities
+  academicReport?: AcademicReportData | null
+  onOpenAcademicReport?: () => void
 }
 
 export const OutputSection: React.FC<OutputSectionProps> = ({ 
@@ -18,15 +35,25 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
   original = '',
   isLoading, 
   isDark, 
-  showHighlights,
+  showHighlights: _showHighlights,
   stats,
-  showMetrics = false,
-  showDualPreview = false
+  engine,
+  model,
+  warning,
+  changesExplanation,
+  factualIntegrity,
+  onTextChange,
+  academicReport,
+  onOpenAcademicReport,
 }) => {
   const [copied, setCopied] = useState(false)
-  const [viewMode, setViewMode] = useState<'original' | 'dual' | 'metrics'>('original')
+  const [viewMode, setViewMode] = useState<'text' | 'dual' | 'metrics'>('text')
+  const [isEditing, setIsEditing] = useState(false)
+  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg'>('base')
+  const [showExplanationCard, setShowExplanationCard] = useState(true)
 
   const handleCopy = () => {
+    if (!text) return
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -35,7 +62,18 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
   const downloadAsText = () => {
     const element = document.createElement('a')
     element.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`)
-    element.setAttribute('download', 'humanized-text.txt')
+    element.setAttribute('download', 'humanora-academic-output.txt')
+    element.style.display = 'none'
+    document.body.appendChild(element)
+    element.click()
+    document.body.removeChild(element)
+  }
+
+  const downloadAsMarkdown = () => {
+    const mdContent = `# Academic Writing Improvement — Humanora AI\n\n${text}\n\n---\n*Original words: ${stats?.originalWords || 0} | Enhanced words: ${stats?.humanizedWords || 0} | Academic Quality Index: ${academicReport?.overallScore || 'Audited'}/100*`
+    const element = document.createElement('a')
+    element.setAttribute('href', `data:text/markdown;charset=utf-8,${encodeURIComponent(mdContent)}`)
+    element.setAttribute('download', 'humanora-academic-output.md')
     element.style.display = 'none'
     document.body.appendChild(element)
     element.click()
@@ -44,102 +82,214 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
 
   const downloadAsDocx = () => {
     const element = document.createElement('a')
-    element.setAttribute('href', `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${btoa(text)}`)
-    element.setAttribute('download', 'humanized-text.docx')
+    element.setAttribute('href', `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${btoa(unescape(encodeURIComponent(text)))}`)
+    element.setAttribute('download', 'humanora-academic-output.docx')
     element.style.display = 'none'
     document.body.appendChild(element)
     element.click()
     document.body.removeChild(element)
   }
 
+  const fontClasses = {
+    sm: 'text-xs',
+    base: 'text-sm',
+    lg: 'text-base'
+  }
+
+  const currentWords = text.split(/\s+/).filter(w => w.length > 0).length
+
   return (
-    <div className={`flex flex-col gap-3 p-6 rounded-2xl transition-dark ${
-      isDark 
-        ? 'bg-gray-800/60 border border-gray-700/50' 
-        : 'bg-white/60 border border-gray-100/50'
-    }`}
-    style={{
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)'
-    }}>
-      <div className="flex justify-between items-center">
-        <label className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-          Humanized Output
-        </label>
-        {isLoading && (
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Processing...
+    <div className={`flex flex-col gap-4 p-6 rounded-2xl border transition-all ${
+      isDark
+        ? 'bg-charcoal-900/70 border-white/10 shadow-xl'
+        : 'bg-white border-slate-200 shadow-sm'
+    }`}>
+      {/* Top Header & Status */}
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm font-bold text-white flex items-center gap-2">
+            <span>Enhanced Output</span>
+            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-gold-500/15 text-gold-400 border border-gold-500/30">
+              Academic Draft
             </span>
-          </div>
-        )}
+          </label>
+
+          {engine && (
+            <span className={`text-[11px] font-mono px-2.5 py-0.5 rounded border flex items-center gap-1.5 ${
+              engine === 'gemini' 
+                ? 'bg-gold-500/10 text-gold-300 border-gold-500/20' 
+                : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${engine === 'gemini' ? 'bg-gold-400' : 'bg-blue-400'}`} />
+              <span>
+                {engine === 'gemini' 
+                  ? `Gemini Cloud (${model || 'Active'})` 
+                  : `Offline Linguistic Engine (${model || 'Local'})`}
+              </span>
+            </span>
+          )}
+
+          {factualIntegrity && (
+            <span className={`text-[11px] px-2 py-0.5 rounded font-semibold flex items-center gap-1 border ${
+              factualIntegrity.verified
+                ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+            }`}>
+              <span>{factualIntegrity.verified ? '✓' : '⚠'}</span>
+              <span>{factualIntegrity.verified ? 'Citations & Meaning Intact' : 'Entity Notice'}</span>
+            </span>
+          )}
+        </div>
+
+        {/* View Mode Switcher & Academic Report Trigger */}
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenAcademicReport && (
+            <button
+              type="button"
+              onClick={onOpenAcademicReport}
+              className="px-3 py-1 rounded-xl text-xs font-bold bg-gold-500/15 hover:bg-gold-500/25 text-gold-300 border border-gold-500/30 transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <span>📊 Academic Quality Report</span>
+              {academicReport && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-gold-500/25 text-gold-300 font-extrabold">
+                  {academicReport.overallScore}/100
+                </span>
+              )}
+            </button>
+          )}
+
+          {text && (
+            <div className="flex items-center gap-1 bg-charcoal-950 p-1 rounded-xl border border-white/5 text-xs">
+              <button
+                onClick={() => setViewMode('text')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+                  viewMode === 'text'
+                    ? 'bg-gold-500/20 text-gold-300 border border-gold-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Refined Text
+              </button>
+              <button
+                onClick={() => setViewMode('dual')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+                  viewMode === 'dual'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Side-by-Side Diff
+              </button>
+              <button
+                onClick={() => setViewMode('metrics')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+                  viewMode === 'metrics'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Writing Metrics
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* View Mode Tabs */}
-      {text && (showDualPreview || showMetrics) && (
-        <div className="flex gap-2 border-b border-gray-600/30">
-          <button
-            onClick={() => setViewMode('original')}
-            className={`px-3 py-2 text-xs font-medium border-b-2 transition-all ${
-              viewMode === 'original'
-                ? isDark
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-blue-500 text-blue-600'
-                : isDark
-                  ? 'border-transparent text-gray-400 hover:text-gray-300'
-                  : 'border-transparent text-gray-500 hover:text-gray-600'
-            }`}>
-            Enhanced Text
-          </button>
-          {showDualPreview && (
-            <button
-              onClick={() => setViewMode('dual')}
-              className={`px-3 py-2 text-xs font-medium border-b-2 transition-all ${
-                viewMode === 'dual'
-                  ? isDark
-                    ? 'border-green-500 text-green-400'
-                    : 'border-green-500 text-green-600'
-                  : isDark
-                    ? 'border-transparent text-gray-400 hover:text-gray-300'
-                    : 'border-transparent text-gray-500 hover:text-gray-600'
-              }`}>
-              Side-by-Side Compare
-            </button>
-          )}
-          {showMetrics && (
-            <button
-              onClick={() => setViewMode('metrics')}
-              className={`px-3 py-2 text-xs font-medium border-b-2 transition-all ${
-                viewMode === 'metrics'
-                  ? isDark
-                    ? 'border-purple-500 text-purple-400'
-                    : 'border-purple-500 text-purple-600'
-                  : isDark
-                    ? 'border-transparent text-gray-400 hover:text-gray-300'
-                    : 'border-transparent text-gray-500 hover:text-gray-600'
-              }`}>
-              Quality Metrics
-            </button>
-          )}
+      {/* Warning Notice if any */}
+      {warning && (
+        <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <span>⚠</span>
+          <span>{warning}</span>
         </div>
       )}
 
-      {text ? (
+      {/* Changes Explanation Drawer */}
+      {changesExplanation && changesExplanation.length > 0 && showExplanationCard && (
+        <div className="p-4 rounded-xl bg-charcoal-950/90 border border-gold-500/20 text-xs">
+          <div className="flex justify-between items-center mb-2 pb-1 border-b border-white/5">
+            <span className="font-bold text-gold-300 flex items-center gap-1.5">
+              <span>✦</span>
+              <span>Academic Refinement & Clarity Enhancements Applied</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowExplanationCard(false)}
+              className="text-slate-500 hover:text-slate-300 text-[10px]"
+            >
+              Dismiss
+            </button>
+          </div>
+          <ul className="space-y-1 text-slate-300 pl-1">
+            {changesExplanation.map((exp, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className="text-gold-400 font-bold">•</span>
+                <span>{exp}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Main Body */}
+      {isLoading ? (
+        <div className="h-72 rounded-xl bg-charcoal-950/60 border border-white/5 flex flex-col items-center justify-center gap-3">
+          <div className="w-8 h-8 border-2 border-gold-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-semibold text-slate-300">
+            Applying academic clarity & natural scholarly rewrite...
+          </p>
+          <p className="text-xs text-slate-500">
+            Auditing citations, empirical figures, quotes, and meaning fidelity
+          </p>
+        </div>
+      ) : text ? (
         <>
-          {viewMode === 'original' && (
-            <div className={`relative min-h-64 p-4 rounded-xl border-2 transition-all ${
-              isDark
-                ? 'bg-gray-900/50 border-gray-700/50 text-gray-100'
-                : 'bg-white/50 border-gray-200/50 text-gray-900'
-            }`}>
-              <p className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                {text}
-              </p>
+          {viewMode === 'text' && (
+            <div className="relative">
+              {/* Font Sizer & Inline Edit Toggle */}
+              <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 bg-charcoal-850/90 p-1 rounded-lg border border-white/10 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                    isEditing ? 'bg-gold-500 text-charcoal-950 font-bold' : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Edit text manually"
+                >
+                  {isEditing ? 'Save Edits' : '✎ Edit Manually'}
+                </button>
+                <span className="text-slate-600">|</span>
+                <button
+                  type="button"
+                  onClick={() => setFontSize(fontSize === 'lg' ? 'base' : fontSize === 'base' ? 'sm' : 'lg')}
+                  className="px-1.5 py-0.5 text-slate-400 hover:text-white"
+                  title="Toggle font size"
+                >
+                  A±
+                </button>
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={text}
+                    onChange={(e) => onTextChange && onTextChange(e.target.value)}
+                    className={`w-full h-72 p-4 pt-12 rounded-xl border font-mono ${fontClasses[fontSize]} leading-relaxed resize-none bg-charcoal-950/90 text-slate-100 border-gold-500/40 focus:outline-none`}
+                    placeholder="Type or edit your text here..."
+                  />
+                  <div className="flex justify-between items-center text-[11px] text-slate-400 px-1">
+                    <span>Inline Editing Active — Live changes update exports</span>
+                    <span>{currentWords} words | {text.length} characters</span>
+                  </div>
+                </div>
+              ) : (
+                <div className={`min-h-[18rem] p-5 pt-12 rounded-xl border bg-charcoal-950/80 border-white/10 text-slate-100 font-mono ${fontClasses[fontSize]} leading-relaxed whitespace-pre-wrap select-text`}>
+                  {text}
+                </div>
+              )}
             </div>
           )}
 
-          {viewMode === 'dual' && showDualPreview && original && (
+          {viewMode === 'dual' && (
             <DualPreview
               original={original}
               humanized={text}
@@ -147,7 +297,7 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
             />
           )}
 
-          {viewMode === 'metrics' && showMetrics && original && (
+          {viewMode === 'metrics' && (
             <MetricsDisplay
               original={original}
               humanized={text}
@@ -155,64 +305,91 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
             />
           )}
 
+          {/* Stats Bar */}
           {stats && (
-            <div className={`grid grid-cols-2 gap-2 text-xs p-3 rounded-lg ${
-              isDark
-                ? 'bg-gray-700/30 text-gray-300'
-                : 'bg-gray-200/30 text-gray-700'
-            }`}>
-              <div>📊 Original: {stats.originalLength} chars</div>
-              <div>📈 Enhanced: {stats.humanizedLength} chars</div>
-              <div>📝 Words: {stats.originalWords} → {stats.humanizedWords}</div>
-              <div>✨ Quality: Premium</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-charcoal-950/80 border border-white/5 text-xs text-slate-300">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500 uppercase">Words</span>
+                <span className="font-semibold text-slate-200">
+                  {stats.originalWords} → {stats.humanizedWords || currentWords}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500 uppercase">Characters</span>
+                <span className="font-semibold text-slate-200">
+                  {stats.originalLength} → {text.length}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500 uppercase">Processing Time</span>
+                <span className="font-semibold text-slate-200">
+                  {stats.processingTimeMs ? `${(stats.processingTimeMs / 1000).toFixed(2)}s` : 'Fast'}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500 uppercase">Citation Fidelity</span>
+                <span className="font-semibold text-emerald-400">
+                  {academicReport?.citationAudit?.allCitationsPreserved ? '100% Preserved' : 'Audited'}
+                </span>
+              </div>
             </div>
           )}
+
+          {/* Action Toolbar */}
+          <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-charcoal-850 hover:bg-charcoal-800 text-slate-200 border border-white/10 transition-all flex items-center gap-1.5"
+              >
+                <span>{copied ? '✓ Copied!' : '📋 Copy Text'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsEditing(!isEditing)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-charcoal-850 hover:bg-charcoal-800 text-slate-200 border border-white/10 transition-all"
+              >
+                {isEditing ? '✓ Done Editing' : '✎ Edit'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-400 font-medium">Export:</span>
+              <button
+                type="button"
+                onClick={downloadAsText}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-charcoal-850 hover:bg-charcoal-800 text-slate-300 border border-white/5 transition-all"
+              >
+                .TXT
+              </button>
+              <button
+                type="button"
+                onClick={downloadAsMarkdown}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-charcoal-850 hover:bg-charcoal-800 text-slate-300 border border-white/5 transition-all"
+              >
+                .MD
+              </button>
+              <button
+                type="button"
+                onClick={downloadAsDocx}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-charcoal-850 hover:bg-charcoal-800 text-slate-300 border border-white/5 transition-all"
+              >
+                .DOCX
+              </button>
+            </div>
+          </div>
         </>
       ) : (
-        <div className={`h-64 flex items-center justify-center rounded-xl border-2 border-dashed transition-all ${
-          isDark
-            ? 'bg-gray-900/30 border-gray-700/30 text-gray-500'
-            : 'bg-gray-50/30 border-gray-300/30 text-gray-400'
-        }`}>
-          <p className="text-center">
-            Your humanized text will appear here...
+        <div className="h-72 rounded-xl bg-charcoal-950/40 border border-white/5 flex flex-col items-center justify-center gap-2 text-center p-6">
+          <span className="text-2xl text-slate-600">🎓</span>
+          <p className="text-sm font-semibold text-slate-400">
+            Your refined academic paper will appear here
           </p>
-        </div>
-      )}
-
-      {text && (
-        <div className="flex flex-wrap gap-2 pt-3">
-          <button
-            onClick={handleCopy}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-              copied
-                ? isDark
-                  ? 'bg-green-600/80 text-white'
-                  : 'bg-green-500/80 text-white'
-                : isDark
-                  ? 'bg-blue-600/80 text-white hover:bg-blue-700/90'
-                  : 'bg-blue-500/80 text-white hover:bg-blue-600/90'
-            }`}>
-            {copied ? '✓ Copied' : 'Copy Text'}
-          </button>
-          <button
-            onClick={downloadAsText}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-              isDark
-                ? 'bg-purple-600/80 text-white hover:bg-purple-700/90'
-                : 'bg-purple-500/80 text-white hover:bg-purple-600/90'
-            }`}>
-            Download .txt
-          </button>
-          <button
-            onClick={downloadAsDocx}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-              isDark
-                ? 'bg-orange-600/80 text-white hover:bg-orange-700/90'
-                : 'bg-orange-500/80 text-white hover:bg-orange-600/90'
-            }`}>
-            Download .docx
-          </button>
+          <p className="text-xs text-slate-500 max-w-sm">
+            Configure academic clarity, author voice, and privacy settings on the right panel, then click "Improve Academic Writing".
+          </p>
         </div>
       )}
     </div>

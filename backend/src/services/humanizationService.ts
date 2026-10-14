@@ -1,541 +1,666 @@
 /**
- * Premium Humanization Service - Advanced NLP-like Processing
- * Transforms AI-generated text into natural, human-quality writing
+ * Humanora AI — Advanced Natural Writing & Linguistic Engine
  * 
- * Technologies:
- * - Advanced pattern recognition
- * - Contextual paraphrasing
- * - Syntactic variation
- * - Semantic enhancement
- * - Prosody analysis
+ * High-precision linguistic transformation system engineered for authentic,
+ * varied, natural prose while rigorously safeguarding factual meaning,
+ * citations, technical entities, and author voice.
  */
+
+export interface EntityAudit {
+  citations: string[]
+  numbers: string[]
+  dates: string[]
+  quotes: string[]
+}
+
+export interface PreservationAudit {
+  verified: boolean
+  missingEntities: string[]
+  preservedEntities: string[]
+  warnings: string[]
+}
+
 export class HumanizationService {
-  private aiPatterns: Record<string, RegExp> = {
-    passive: /\b(is|are|was|were|be)\s+(being\s+)?(described|defined|noted|explained|stated|mentioned|claimed|suggested|shown|demonstrated)\b/gi,
-    repetitionMarker: /\b(moreover|furthermore|in addition|additionally)\b/gi,
-    genericVerbs: /\b(is|are|get|make|do|have|show|provide|create|use|give)\b/gi,
-    hedging: /\b(may|might|could|appears to|seems to|tends to|appears|seems)\b/gi,
-    transitionals: /\b(therefore|thus|hence|consequently|as a result|in conclusion|ultimately|finally)\b/gi,
+  /**
+   * Main transformation method with multi-tier processing
+   */
+  public humanize(
+    text: string,
+    mode: string = 'natural',
+    tone: number = 0.5,
+    complexity: number = 0.5,
+    vocabulary: boolean = false,
+    authorVoice?: string
+  ): string {
+    if (!text || text.trim().length === 0) return text
+
+    // Step 1: Shield entities, citations, and quotes before transformation
+    const { shieldedText, restoreMap } = this.shieldSensitiveTokens(text)
+
+    // Step 2: Normalize typography, whitespace, and punctuation
+    let result = this.normalizeTypography(shieldedText)
+
+    // Step 3: De-clutter formulaic AI throat-clearing and verbose padding
+    result = this.pruneAICliches(result)
+
+    // Step 4: Apply mode-calibrated stylistic transformation
+    switch (mode) {
+      case 'academic':
+        result = this.academicTransform(result, tone, vocabulary)
+        break
+      case 'professional':
+        result = this.professionalTransform(result, tone, vocabulary)
+        break
+      case 'casual':
+        result = this.casualTransform(result, tone)
+        break
+      case 'concise':
+        result = this.conciseTransform(result)
+        break
+      case 'expand':
+        result = this.clarityExpansion(result)
+        break
+      case 'grammar':
+        result = this.grammarPolish(result)
+        break
+      case 'creative':
+        result = this.creativeTransform(result, tone, vocabulary)
+        break
+      case 'standard':
+      case 'natural':
+      case 'advanced':
+      default:
+        result = this.naturalRewrite(result, tone, complexity, vocabulary, authorVoice)
+        break
+    }
+
+    // Step 5: Modulate sentence cadence (burstiness)
+    result = this.modulateCadence(result, mode)
+
+    // Step 6: Tone and contraction alignment
+    result = this.alignToneAndContractions(result, tone, mode)
+
+    // Step 7: Restore all shielded citations, numbers, and quotations intact
+    result = this.restoreSensitiveTokens(result, restoreMap)
+
+    // Step 8: Final polishing (spacing, capitalization, punctuation integrity)
+    result = this.finalizeProse(result)
+
+    return result
   }
 
   /**
-   * Main humanization method with multi-layer processing
+   * Shields citations, quotations, numerical data, and technical tokens
+   * so offline transformations cannot distort them.
    */
-  humanize(
+  private shieldSensitiveTokens(text: string): { shieldedText: string; restoreMap: Map<string, string> } {
+    const restoreMap = new Map<string, string>()
+    let tokenIndex = 0
+
+    const createPlaceholder = (value: string): string => {
+      const key = `__HUMANORA_TOKEN_${tokenIndex++}__`
+      restoreMap.set(key, value)
+      return key
+    }
+
+    let shielded = text
+
+    // 1. Shield Direct Quotations ("..." and “...”)
+    shielded = shielded.replace(/("[^"\r\n]+"|“[^”\r\n]+”)/g, (match) => createPlaceholder(match))
+
+    // 2. Shield In-Text Citations (APA, Harvard, Chicago, narrative, multi-author)
+    shielded = shielded.replace(/\(\s*[A-Z][A-Za-z\s.,&]+,?\s*(?:18|19|20)\d{2}[a-z]?(?:;\s*[A-Z][A-Za-z\s.,&]+,?\s*(?:18|19|20)\d{2}[a-z]?)*(?:,\s*p{1,2}\.?\s*\d+(?:-\d+)?)?\s*\)/g, (match) => createPlaceholder(match))
+    shielded = shielded.replace(/\b[A-Z][A-Za-z\s.,&]+\s+et\s+al\.\s*\((?:18|19|20)\d{2}[a-z]?(?:,\s*p{1,2}\.?\s*\d+(?:-\d+)?)?\)/g, (match) => createPlaceholder(match))
+
+    // 3. Shield IEEE & Numerical bracket citations [1], [1-4], [2, 5, 8]
+    shielded = shielded.replace(/\[\s*\d+(?:[–\-,]\s*\d+)*\s*\]/g, (match) => createPlaceholder(match))
+
+    // 4. Shield URL and Email addresses
+    shielded = shielded.replace(/\bhttps?:\/\/[^\s/$.?#].[^\s]*/gi, (match) => createPlaceholder(match))
+    shielded = shielded.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, (match) => createPlaceholder(match))
+
+    // 5. Shield exact percentages, currencies, statistical notations, and technical version specs
+    shielded = shielded.replace(/(\$|€|£|¥)\s*\d+(?:[.,]\d+)?(?:\s*(?:billion|million|trillion|B|M|k))?/gi, (match) => createPlaceholder(match))
+    shielded = shielded.replace(/\b\d+(?:\.\d+)?%/g, (match) => createPlaceholder(match))
+    shielded = shielded.replace(/\bp\s*<\s*0\.\d+\b/gi, (match) => createPlaceholder(match))
+    shielded = shielded.replace(/\b(?:Node\.js|OAuth|Python|TypeScript|Java|Go|HTTP|REST|GraphQL)\s+v?\d+(?:\.\d+)*\b/gi, (match) => createPlaceholder(match))
+
+    return { shieldedText: shielded, restoreMap }
+  }
+
+  /**
+   * Restores all shielded tokens with exact original casing and formatting.
+   */
+  private restoreSensitiveTokens(text: string, restoreMap: Map<string, string>): string {
+    let restored = text
+    restoreMap.forEach((originalValue, key) => {
+      restored = restored.split(key).join(originalValue)
+    })
+    return restored
+  }
+
+  /**
+   * Normalizes typographic oddities and spacing artifacts.
+   */
+  private normalizeTypography(text: string): string {
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/ +([.,!?;:])/g, '$1')
+      .replace(/([.!?])(?=[A-Za-z])/g, '$1 ')
+      .trim()
+  }
+
+  /**
+   * Prunes formulaic AI cliches and bloated throat-clearing preambles.
+   */
+  private pruneAICliches(text: string): string {
+    const cliches: Array<[RegExp, string]> = [
+      [/\bIt is important to remember that\s*/gi, ''],
+      [/\bIt is important to note that\s*/gi, ''],
+      [/\bIt is worth noting that\s*/gi, ''],
+      [/\bIt is worth mentioning that\s*/gi, ''],
+      [/\bIt should be noted that\s*/gi, ''],
+      [/\bIt goes without saying that\s*/gi, ''],
+      [/\bNeedless to say,?\s*/gi, ''],
+      [/\bIn today's fast-paced world,?\s*/gi, 'Today, '],
+      [/\bIn today's digital era,?\s*/gi, 'Currently, '],
+      [/\bIn today's digital landscape,?\s*/gi, 'Currently, '],
+      [/\bIn this day and age,?\s*/gi, 'Today, '],
+      [/\bAt the end of the day,?\s*/gi, 'Ultimately, '],
+      [/\bDue to the fact that\b/gi, 'because'],
+      [/\bIn order to\b/gi, 'to'],
+      [/\bAt this point in time\b/gi, 'currently'],
+      [/\bIn the event that\b/gi, 'if'],
+      [/\bWith regard to\b/gi, 'regarding'],
+      [/\bIn light of the fact that\b/gi, 'given that'],
+      [/\bServes as a testament to\b/gi, 'demonstrates'],
+      [/\bPlays a pivotal role in\b/gi, 'is central to'],
+      [/\bPlays a crucial role in\b/gi, 'is key to'],
+      [/\bDelves into\b/gi, 'examines'],
+      [/\bDelve into\b/gi, 'examine'],
+      [/\bA testament to\b/gi, 'evidence of'],
+      [/\bA beacon of\b/gi, 'a model of'],
+      [/\bIntricate tapestry of\b/gi, 'complex system of'],
+      [/\bTapestry of\b/gi, 'interconnection of'],
+      [/\bThe multifaceted nature of\b/gi, 'the complexity of'],
+      [/\bA wide variety of\b/gi, 'various'],
+      [/\bA large number of\b/gi, 'many'],
+      [/\bIn conclusion,?\s*/gi, 'To conclude, ']
+    ]
+
+    let cleaned = text
+    for (const [regex, replacement] of cliches) {
+      cleaned = cleaned.replace(regex, replacement)
+    }
+
+    // Fix double spaces and clean sentence starts after removals
+    cleaned = cleaned
+      .replace(/\s{2,}/g, ' ')
+      .replace(/(^|[.!?]\s+)([a-z])/g, (_, boundary, char) => boundary + char.toUpperCase())
+
+    return cleaned
+  }
+
+  /**
+   * Natural rewrite: balanced tone, organic sentence flow, and dynamic rhythm.
+   */
+  private naturalRewrite(
     text: string,
-    mode: string,
     tone: number,
     complexity: number,
-    vocabulary: boolean
+    vocabulary: boolean,
+    authorVoice?: string
   ): string {
     let result = text
 
-    // Pre-processing: Clean and normalize
-    result = this.normalize(result)
+    // Smooth out stiff nominalizations into active verbs
+    result = this.streamlineNominalizations(result)
 
-    // Apply mode-specific transformations
-    switch (mode) {
-      case 'standard':
-        result = this.standardMode(result, tone)
-        break
-      case 'advanced':
-        result = this.advancedMode(result, tone, complexity)
-        break
-      case 'academic':
-        result = this.academicMode(result, tone)
-        break
-      case 'creative':
-        result = this.creativeMode(result, tone)
-        break
-      default:
-        result = this.standardMode(result, tone)
+    if (authorVoice === 'direct') {
+      result = result
+        .replace(/\bseems to be\b/gi, 'is')
+        .replace(/\bappears to be\b/gi, 'is')
+        .replace(/\bcan perhaps be described as\b/gi, 'is')
     }
 
-    // Post-processing enhancements
-    result = this.improveCoherence(result)
-    result = this.refineLanguage(result)
-
-    // Apply vocabulary enhancement if enabled
     if (vocabulary) {
-      result = this.enhanceVocabulary(result)
+      result = this.enrichDiction(result)
     }
 
-    // Final polish
-    result = this.finalizeText(result)
+    return result
+  }
+
+  /**
+   * Academic mode: Scholarly precision, formal restraint, coherent transitions.
+   * Eliminates colloquialisms while strictly preserving facts and citations.
+   */
+  private academicTransform(text: string, _tone: number, vocabulary: boolean): string {
+    let result = text
+
+    const academicRefinements: Array<[RegExp, string]> = [
+      [/\ba lot of\b/gi, 'substantial'],
+      [/\bheaps of\b/gi, 'numerous'],
+      [/\bget better\b/gi, 'improve'],
+      [/\bgot better\b/gi, 'improved'],
+      [/\bbig difference\b/gi, 'notable difference'],
+      [/\blook into\b/gi, 'examine'],
+      [/\blooked into\b/gi, 'examined'],
+      [/\bfigure out\b/gi, 'determine'],
+      [/\bfigured out\b/gi, 'determined'],
+      [/\bfind out\b/gi, 'ascertain'],
+      [/\bfound out\b/gi, 'ascertained'],
+      [/\bclear up\b/gi, 'clarify'],
+      [/\bcleared up\b/gi, 'clarified'],
+      [/\bdeal with\b/gi, 'address'],
+      [/\bdealt with\b/gi, 'addressed'],
+      [/\bturn out to be\b/gi, 'prove to be'],
+      [/\bturned out to be\b/gi, 'proved to be'],
+      [/\bshows that\b/gi, 'indicates that'],
+      [/\bshowed that\b/gi, 'indicated that'],
+      [/\bpointed out that\b/gi, 'noted that'],
+      [/\bpoints out that\b/gi, 'notes that'],
+      [/\bcame up with\b/gi, 'formulated'],
+      [/\bgives evidence\b/gi, 'provides empirical evidence'],
+      [/\bways to\b/gi, 'methods to'],
+      [/\bbring about\b/gi, 'precipitate'],
+      [/\bset up\b/gi, 'establish'],
+      [/\bput forward\b/gi, 'propose'],
+      [/\btake into account\b/gi, 'account for']
+    ]
+
+    for (const [from, to] of academicRefinements) {
+      result = result.replace(from, to)
+    }
+
+    result = this.expandContractions(result)
+
+    if (vocabulary) {
+      result = this.enrichAcademicDiction(result)
+    }
 
     return result
   }
 
   /**
-   * Normalize and clean text
+   * Professional mode: crisp, business-oriented clarity.
    */
-  private normalize(text: string): string {
-    let result = text
-    // Clean excessive whitespace
-    result = result.replace(/\s+/g, ' ')
-    // Fix common punctuation issues
-    result = result.replace(/\s+([.,!?;:])/g, '$1')
-    // Fix spacing after punctuation
-    result = result.replace(/([.!?])\s*(?=[A-Z])/g, '$1 ')
-    return result.trim()
-  }
-
-  /**
-   * Standard Mode: Basic humanization
-   * - Remove repetitive phrases
-   * - Add variety to sentence structure
-   * - Adjust tone
-   */
-  private standardMode(text: string, tone: number): string {
+  private professionalTransform(text: string, _tone: number, _vocabulary: boolean): string {
     let result = text
 
-    // Remove common AI repetitions
-    result = this.removeRepetition(result)
+    const businessRefinements: Array<[RegExp, string]> = [
+      [/\bas per our conversation\b/gi, 'as discussed'],
+      [/\bplease be advised that\b/gi, 'please note that'],
+      [/\bat the present time\b/gi, 'presently'],
+      [/\bin the near future\b/gi, 'soon'],
+      [/\breach out to\b/gi, 'contact'],
+      [/\btouch base with\b/gi, 'connect with'],
+      [/\bcircle back\b/gi, 'follow up'],
+      [/\bbandwidth\b/gi, 'capacity']
+    ]
 
-    // Add sentence variety
-    result = this.addSentenceVariety(result)
+    for (const [from, to] of businessRefinements) {
+      result = result.replace(from, to)
+    }
 
-    // Adjust tone
-    result = this.adjustTone(result, tone)
+    // Convert bureaucratic nominalizations to active business verbs
+    result = this.streamlineNominalizations(result)
 
     return result
   }
 
   /**
-   * Advanced Mode: Deep humanization with multiple layers
+   * Replaces stiff bureaucratic nominalizations with active, punchy verbs.
    */
-  private advancedMode(text: string, tone: number, complexity: number): string {
+  private streamlineNominalizations(text: string): string {
+    let s = text
+    const nominalizations: Array<[RegExp, string]> = [
+      [/\bmake an assumption\b/gi, 'assume'],
+      [/\bcome to the conclusion\b/gi, 'conclude'],
+      [/\bconduct an investigation into\b/gi, 'investigate'],
+      [/\bconduct an investigation\b/gi, 'investigate'],
+      [/\bprovide an explanation of\b/gi, 'explain'],
+      [/\bgive consideration to\b/gi, 'consider'],
+      [/\btake into consideration\b/gi, 'consider'],
+      [/\bperform an analysis of\b/gi, 'analyze'],
+      [/\bhas the ability to\b/gi, 'can'],
+      [/\bis capable of\b/gi, 'can'],
+      [/\butilize\b/gi, 'use'],
+      [/\butilization\b/gi, 'use']
+    ]
+
+    for (const [nom, active] of nominalizations) {
+      s = s.replace(nom, active)
+    }
+    return s
+  }
+
+  /**
+   * Casual mode: warm, authentic conversational cadence.
+   */
+  private casualTransform(text: string, _tone: number): string {
+    return this.contractVerbs(text)
+  }
+
+  /**
+   * Concise mode: eliminates wordiness while preserving 100% of information.
+   */
+  private conciseTransform(text: string): string {
     let result = text
 
-    result = this.removeRepetition(result)
-    result = this.addSentenceVariety(result)
-    result = this.improveFlow(result)
-    result = this.addHumanTouches(result)
-    result = this.adjustTone(result, tone)
-    result = this.adjustComplexity(result, complexity)
+    const redundancies: Array<[RegExp, string]> = [
+      [/\babsolutely essential\b/gi, 'essential'],
+      [/\bactual facts\b/gi, 'facts'],
+      [/\badvance planning\b/gi, 'planning'],
+      [/\balternative choice\b/gi, 'alternative'],
+      [/\bclose proximity\b/gi, 'proximity'],
+      [/\bcompletely eliminate\b/gi, 'eliminate'],
+      [/\bend result\b/gi, 'result'],
+      [/\bexact same\b/gi, 'same'],
+      [/\bfinal outcome\b/gi, 'outcome'],
+      [/\bfuture plans\b/gi, 'plans'],
+      [/\bpast history\b/gi, 'history'],
+      [/\btrue facts\b/gi, 'facts'],
+      [/\bunexpected surprise\b/gi, 'surprise']
+    ]
+
+    for (const [from, to] of redundancies) {
+      result = result.replace(from, to)
+    }
 
     return result
   }
 
   /**
-   * Academic Mode: Formal, scholarly tone
+   * Expand for clarity.
    */
-  private academicMode(text: string, tone: number): string {
+  private clarityExpansion(text: string): string {
     let result = text
-
-    result = this.removeRepetition(result)
-    result = this.addSentenceVariety(result)
-    result = this.makeAcademic(result)
-    result = this.adjustTone(result, Math.min(tone, 25)) // Keep formal
-
+    result = result.replace(/\be\.g\.,?\s*/gi, 'for example, ')
+    result = result.replace(/\bi\.e\.,?\s*/gi, 'specifically, ')
     return result
   }
 
   /**
-   * Creative Mode: Engaging, narrative-like tone
+   * Grammar polish.
    */
-  private creativeMode(text: string, tone: number): string {
+  private grammarPolish(text: string): string {
     let result = text
-
-    result = this.removeRepetition(result)
-    result = this.addSentenceVariety(result)
-    result = this.addCreativeElements(result)
-    result = this.adjustTone(result, Math.max(tone, 75)) // Keep casual
-
+    result = result.replace(/\s+,/g, ',')
+    result = result.replace(/\s+\./g, '.')
+    result = result.replace(/\btheir\s+is\b/gi, 'there is')
+    result = result.replace(/\byour\s+welcome\b/gi, "you're welcome")
     return result
   }
 
   /**
-   * Remove repetitive phrases and words
+   * Creative mode.
    */
-  private removeRepetition(text: string): string {
-    // Remove repeated sentences
+  private creativeTransform(text: string, tone: number, vocabulary: boolean): string {
+    let result = text
+    if (vocabulary) {
+      result = this.enrichDiction(result)
+    }
+    if (tone > 0.6) {
+      result = this.contractVerbs(result)
+    }
+    return result
+  }
+
+  /**
+   * Modulates sentence cadence to achieve organic human burstiness.
+   */
+  private modulateCadence(text: string, mode: string): string {
     const sentences = text.split(/(?<=[.!?])\s+/)
-    const uniqueSentences: string[] = []
-    let lastSentence = ''
+    if (sentences.length <= 1) return text
 
-    for (const sentence of sentences) {
-      const normalized = sentence.toLowerCase().trim()
-      if (normalized !== lastSentence && sentence.trim().length > 0) {
-        uniqueSentences.push(sentence)
-        lastSentence = normalized
-      }
-    }
-
-    let result = uniqueSentences.join(' ')
-
-    // Remove repeated words in sequence
-    result = result.replace(/\b(\w+)(\s+\1)+\b/gi, '$1')
-
-    // Replace repetitive phrases
-    result = result.replace(/\b(very\s+very|really\s+really|extremely\s+extremely)\b/gi, (match) => {
-      const words = match.split(/\s+/)
-      return words[0]
-    })
-
-    return result
-  }
-
-  /**
-   * Add variety to sentence structures
-   */
-  private addSentenceVariety(text: string): string {
-    let result = text
-
-    // Split long sentences
-    result = result.replace(/([^.!?]{100,}[.!?])/g, (match) => {
-      if (match.length > 150) {
-        // Try to split at natural points (commas, 'and', 'but')
-        const parts = match.split(/,|and|but|;/)
-        if (parts.length > 1) {
-          return (
-            parts.slice(0, Math.ceil(parts.length / 2)).join(', ') +
-            '. ' +
-            parts.slice(Math.ceil(parts.length / 2)).join(', ')
-          )
-        }
-      }
-      return match
-    })
-
-    // Vary sentence starters
-    const starters = [
-      'Interestingly,',
-      'Notably,',
-      'Importantly,',
-      'Furthermore,',
-      'Additionally,',
-      'In light of this,',
-      'Consequently,',
-    ]
-
-    let starterIndex = 0
-    result = result.replace(/^([A-Z][^.!?]*[.!?])/gm, (match) => {
-      if (starterIndex < starters.length && Math.random() > 0.5) {
-        starterIndex++
-        return starters[starterIndex - 1] + ' ' + match.charAt(0).toLowerCase() + match.slice(1)
-      }
-      return match
-    })
-
-    return result
-  }
-
-  /**
-   * Improve text flow and coherence
-   */
-  private improveFlow(text: string): string {
-    let result = text
-
-    // Add transition words
-    const transitions = [
-      'Moreover,',
-      'Additionally,',
-      'Furthermore,',
-      'However,',
-      'Nevertheless,',
-      'On the other hand,',
-      'In contrast,',
-    ]
-
-    const sentences = result.split(/(?<=[.!?])\s+/)
-    const improved: string[] = []
+    const modulated: string[] = []
 
     for (let i = 0; i < sentences.length; i++) {
-      if (i > 0 && Math.random() > 0.7) {
-        const transition = transitions[Math.floor(Math.random() * transitions.length)]
-        improved.push(transition + ' ' + sentences[i])
-      } else {
-        improved.push(sentences[i])
-      }
-    }
+      let s = sentences[i].trim()
+      if (!s) continue
 
-    result = improved.join(' ')
+      const wordCount = s.split(/\s+/).length
+      if (wordCount > 28 && !s.includes('__HUMANORA_TOKEN_')) {
+        // Semicolon split
+        if (s.includes(';')) {
+          const parts = s.split(/;\s*/)
+          if (parts.length === 2 && parts[0].split(/\s+/).length >= 8 && parts[1].split(/\s+/).length >= 6) {
+            const firstPart = parts[0].trim().replace(/[,;]$/, '') + '.'
+            let secondPart = parts[1].trim()
+            secondPart = secondPart.charAt(0).toUpperCase() + secondPart.slice(1)
+            modulated.push(firstPart)
+            modulated.push(secondPart.endsWith('.') ? secondPart : secondPart + '.')
+            continue
+          }
+        }
 
-    return result
-  }
+        // Clause boundary patterns
+        const clausePatterns: Array<[RegExp, string]> = [
+          [/,\s*(?:and\s+therefore|and\s+as\s+a\s+result)\s+/i, '. Consequently, '],
+          [/,\s*(?:which\s+consequently|which\s+in\s+turn)\s+/i, '. In turn, '],
+          [/,\s*(?:which\s+indicates\s+that|which\s+suggests\s+that)\s+/i, '. This indicates that '],
+          [/,\s*(?:which\s+demonstrates\s+that|which\s+shows\s+that)\s+/i, '. This demonstrates that '],
+          [/,\s*whereas\s+/i, '. By comparison, '],
+          [/,\s*although\s+/i, '. Although '],
+          [/,\s*while\s+/i, '. Meanwhile, ']
+        ]
 
-  /**
-   * Add human touches and natural expressions
-   */
-  private addHumanTouches(text: string): string {
-    let result = text
-
-    // Replace robotic phrases
-    const replacements: Record<string, string[]> = {
-      'in conclusion': ['to sum up', 'in summary', 'overall'],
-      'the data shows': ['evidence suggests', 'it appears', 'findings indicate'],
-      'it is important': ['notably', 'critically', 'significantly'],
-      'this is due to': ['this stems from', 'this results from', 'this originates from'],
-      'the fact that': ['considering that', 'given that'],
-    }
-
-    Object.entries(replacements).forEach(([original, alternatives]) => {
-      const regex = new RegExp('\\b' + original + '\\b', 'gi')
-      result = result.replace(regex, () => {
-        return alternatives[Math.floor(Math.random() * alternatives.length)]
-      })
-    })
-
-    return result
-  }
-
-  /**
-   * Adjust tone from formal (0) to casual (100)
-   */
-  private adjustTone(text: string, tone: number): string {
-    let result = text
-
-    if (tone < 33) {
-      // Formal tone
-      result = result.replace(/\byeah\b/gi, 'yes')
-      result = result.replace(/\bgonna\b/gi, 'going to')
-      result = result.replace(/\bwanna\b/gi, 'want to')
-      result = result.replace(/\bcan\'t\b/gi, 'cannot')
-      result = result.replace(/\bdon\'t\b/gi, 'do not')
-    } else if (tone > 66) {
-      // Casual tone
-      result = result.replace(/\bcannot\b/gi, "can't")
-      result = result.replace(/\bcannot\b/gi, "can't")
-      result = result.replace(/\bdo not\b/gi, "don't")
-      result = result.replace(/\bI think\b/gi, 'I reckon')
-    }
-
-    return result
-  }
-
-  /**
-   * Adjust sentence complexity
-   */
-  private adjustComplexity(text: string, complexity: number): string {
-    let result = text
-
-    if (complexity < 33) {
-      // Simplify: shorter sentences, simpler words
-      result = this.simplifyText(result)
-    } else if (complexity > 66) {
-      // Complexify: longer sentences, more sophisticated structures
-      result = this.complexifyText(result)
-    }
-
-    return result
-  }
-
-  /**
-   * Make text more academic
-   */
-  private makeAcademic(text: string): string {
-    let result = text
-
-    const academicReplacements: Record<string, string> = {
-      'show': 'demonstrate',
-      'use': 'utilize',
-      'help': 'facilitate',
-      'cause': 'precipitate',
-      'effect': 'impact',
-      'change': 'transformation',
-      'good': 'sufficient',
-      'bad': 'inadequate',
-    }
-
-    Object.entries(academicReplacements).forEach(([word, replacement]) => {
-      const regex = new RegExp('\\b' + word + '\\b', 'gi')
-      result = result.replace(regex, replacement)
-    })
-
-    return result
-  }
-
-  /**
-   * Add creative elements
-   */
-  private addCreativeElements(text: string): string {
-    let result = text
-
-    // Add more expressive language
-    const intensifiers = ['quite', 'rather', 'somewhat', 'fairly']
-    result = result.replace(/\b(interesting|amazing|important|significant)\b/gi, (match) => {
-      return intensifiers[Math.floor(Math.random() * intensifiers.length)] + ' ' + match
-    })
-
-    return result
-  }
-
-  /**
-   * Enhance vocabulary
-   */
-  private enhanceVocabulary(text: string): string {
-    let result = text
-
-    const vocabularyReplacements: Record<string, string[]> = {
-      'good': ['excellent', 'remarkable', 'outstanding', 'superb'],
-      'bad': ['poor', 'inadequate', 'unsatisfactory', 'subpar'],
-      'big': ['substantial', 'considerable', 'significant', 'enormous'],
-      'small': ['minimal', 'negligible', 'modest', 'minuscule'],
-      'think': ['consider', 'perceive', 'contemplate', 'reflect'],
-      'say': ['assert', 'declare', 'articulate', 'express'],
-      'give': ['provide', 'furnish', 'impart', 'bestow'],
-      'make': ['create', 'produce', 'generate', 'formulate'],
-    }
-
-    Object.entries(vocabularyReplacements).forEach(([word, alternatives]) => {
-      const regex = new RegExp('\\b' + word + '\\b', 'gi')
-      result = result.replace(regex, () => {
-        return alternatives[Math.floor(Math.random() * alternatives.length)]
-      })
-    })
-
-    return result
-  }
-
-  /**
-   * Simplify text
-   */
-  private simplifyText(text: string): string {
-    let result = text
-
-    // Replace complex words with simpler ones
-    const simplifications: Record<string, string> = {
-      'demonstrate': 'show',
-      'utilize': 'use',
-      'facilitate': 'help',
-      'precipitate': 'cause',
-      'insufficient': 'not enough',
-      'approximately': 'about',
-      'subsequent': 'next',
-    }
-
-    Object.entries(simplifications).forEach(([complex, simple]) => {
-      const regex = new RegExp('\\b' + complex + '\\b', 'gi')
-      result = result.replace(regex, simple)
-    })
-
-    return result
-  }
-
-  /**
-   * Complexify text (more sophisticated)
-   */
-  private complexifyText(text: string): string {
-    let result = text
-
-    // Add more sophisticated structures
-    const complexifications: Record<string, string> = {
-      'show': 'elucidate',
-      'help': 'ameliorate',
-      'make': 'engender',
-      'use': 'leverage',
-    }
-
-    Object.entries(complexifications).forEach(([simple, complex]) => {
-      const regex = new RegExp('\\b' + simple + '\\b', 'gi')
-      result = result.replace(regex, complex)
-    })
-
-    return result
-  }
-
-  /**
-   * Improve coherence and logical flow
-   */
-  private improveCoherence(text: string): string {
-    let result = text
-
-    // Convert passive voice to active where appropriate
-    result = result.replace(/it\s+is\s+(\w+(?:ed|en))\s+that/gi, (match) => {
-      const verb = match.match(/(\w+(?:ed|en))/)?.[1] || ''
-      const subjects = ['The study', 'Research', 'Evidence', 'Analysis']
-      return subjects[Math.floor(Math.random() * subjects.length)] + ' ' + verb + 's'
-    })
-
-    // Reduce modal verbs for stronger statement
-    result = result.replace(/\b(may|might|could|appears to|seems to)\s+(\w+)/gi, (match, modal, verb) => {
-      if (Math.random() > 0.6) {
-        return verb
-      }
-      return match
-    })
-
-    // Add pronouns for personal touch
-    const sentences = result.split(/(?<=[.!?])\s+/)
-    for (let i = 1; i < sentences.length; i++) {
-      if (Math.random() > 0.7 && !sentences[i].match(/^(The|Research|Studies|A|An)/)) {
-        // Keep existing structure
-      }
-    }
-
-    return result.trim()
-  }
-
-  /**
-   * Refine language patterns to sound more natural
-   */
-  private refineLanguage(text: string): string {
-    let result = text
-
-    // Remove excessive use of "research shows" patterns
-    result = result.replace(/research\s+shows\s+that\s+/gi, 'research indicates ')
-    result = result.replace(/it\s+can\s+be\s+seen\s+that\s+/gi, 'notably, ')
-    
-    // Improve conjunction usage
-    result = result.replace(/\s+and\s+which\s+/gi, ', which ')
-    result = result.replace(/\s+and\s+also\s+/gi, ' and ')
-    
-    // Remove "very" intensifier and replace with stronger words
-    result = result.replace(/very\s+(good|bad|important|interesting)/gi, (match, adj) => {
-      const strongWords: Record<string, string> = {
-        'good': 'excellent',
-        'bad': 'poor',
-        'important': 'critical',
-        'interesting': 'compelling',
-      }
-      return strongWords[adj.toLowerCase()] || match
-    })
-
-    // Paraphrase common AI patterns
-    result = result.replace(/\b(in today's world|in today's society|nowadays)\b/gi, '')
-    result = result.replace(/to\s+summarize,?\s+/gi, 'in essence, ')
-    
-    return result.trim()
-  }
-
-  /**
-   * Final polish: sentence structure optimization
-   */
-  private finalizeText(text: string): string {
-    let result = text
-
-    // Ensure proper sentence spacing
-    result = result.replace(/([.!?])([A-Z])/g, '$1 $2')
-    
-    // Remove double spaces
-    result = result.replace(/\s{2,}/g, ' ')
-    
-    // Ensure proper capitalization after periods
-    result = result.replace(/(?:^|\.\s+)([a-z])/g, (match, letter) => {
-      return match.replace(letter, letter.toUpperCase())
-    })
-
-    // Add subtle variety to sentence endings
-    const sentences = result.split(/(?<=[.!?])\s+/)
-    if (sentences.length > 5) {
-      // Add some variety to ending punctuation
-      let questionCount = 0
-      for (let i = 0; i < sentences.length && questionCount < 1; i++) {
-        if (Math.random() > 0.85 && !sentences[i].includes('?')) {
-          // Occasionally turn a statement into a rhetorical question
-          if (sentences[i].match(/^(This|That|These|Those)/)) {
-            sentences[i] = sentences[i].replace(/\?$/, '?')
-            if (!sentences[i].includes('?')) {
-              sentences[i] = sentences[i].replace(/\.$/, '?')
-              questionCount++
+        let splitDone = false
+        for (const [regex, replacement] of clausePatterns) {
+          const match = s.match(new RegExp(`^(.+?)(${regex.source})(.+)$`, 'i'))
+          if (match && match[1].split(/\s+/).length >= 8 && match[3].split(/\s+/).length >= 6) {
+            const first = match[1].trim().replace(/[,;]$/, '') + '.'
+            let second = replacement + match[3].trim()
+            if (!second.endsWith('.') && !second.endsWith('?') && !second.endsWith('!')) {
+              second += '.'
             }
+            modulated.push(first)
+            modulated.push(second)
+            splitDone = true
+            break
+          }
+        }
+        if (splitDone) continue
+      }
+
+      modulated.push(s)
+    }
+
+    // Sentence opener diversity check: prevent consecutive sentences starting with "The "
+    for (let j = 1; j < modulated.length; j++) {
+      if (/^The\s+/i.test(modulated[j]) && /^The\s+/i.test(modulated[j - 1])) {
+        if (mode === 'academic' && !modulated[j].startsWith('Specifically, ') && !modulated[j].startsWith('Notably, ')) {
+          modulated[j] = 'Specifically, t' + modulated[j].slice(1)
+        }
+      }
+    }
+
+    return modulated.join(' ')
+  }
+
+  /**
+   * Aligns tone and contractions based on user preference.
+   */
+  public alignToneAndContractions(text: string, tone: number, mode: string): string {
+    if (mode === 'academic' || tone < 0.35) {
+      return this.expandContractions(text)
+    } else if (tone > 0.65 || mode === 'casual') {
+      return this.contractVerbs(text)
+    }
+    return text
+  }
+
+  private expandContractions(text: string): string {
+    const contractions: Array<[RegExp, string]> = [
+      [/\bcan't\b/gi, 'cannot'],
+      [/\bwon't\b/gi, 'will not'],
+      [/\bdon't\b/gi, 'do not'],
+      [/\bdoesn't\b/gi, 'does not'],
+      [/\bdidn't\b/gi, 'did not'],
+      [/\bisn't\b/gi, 'is not'],
+      [/\baren't\b/gi, 'are not'],
+      [/\bwasn't\b/gi, 'was not'],
+      [/\bweren't\b/gi, 'were not'],
+      [/\bhasn't\b/gi, 'has not'],
+      [/\bhaven't\b/gi, 'have not'],
+      [/\bhadn't\b/gi, 'had not'],
+      [/\bit's\b/gi, 'it is'],
+      [/\bthere's\b/gi, 'there is'],
+      [/\bthat's\b/gi, 'that is'],
+      [/\bthey're\b/gi, 'they are'],
+      [/\bwe're\b/gi, 'we are'],
+      [/\byou're\b/gi, 'you are']
+    ]
+
+    let s = text
+    for (const [from, to] of contractions) {
+      s = s.replace(from, to)
+    }
+    return s
+  }
+
+  private contractVerbs(text: string): string {
+    const expansions: Array<[RegExp, string]> = [
+      [/\bcannot\b/gi, "can't"],
+      [/\bwill not\b/gi, "won't"],
+      [/\bdo not\b/gi, "don't"],
+      [/\bdoes not\b/gi, "doesn't"],
+      [/\bdid not\b/gi, "didn't"],
+      [/\bis not\b/gi, "isn't"],
+      [/\bare not\b/gi, "aren't"],
+      [/\bwas not\b/gi, "wasn't"],
+      [/\bwere not\b/gi, "weren't"],
+      [/\bhas not\b/gi, "hasn't"],
+      [/\bhave not\b/gi, "haven't"],
+      [/\bit is\b/gi, "it's"],
+      [/\bthere is\b/gi, "there's"],
+      [/\bthat is\b/gi, "that's"],
+      [/\bthey are\b/gi, "they're"],
+      [/\bwe are\b/gi, "we're"],
+      [/\byou are\b/gi, "you're"]
+    ]
+
+    let s = text
+    for (const [from, to] of expansions) {
+      s = s.replace(from, to)
+    }
+    return s
+  }
+
+  private enrichDiction(text: string): string {
+    const replacements: Array<[RegExp, string]> = [
+      [/\bvery important\b/gi, 'crucial'],
+      [/\bvery good\b/gi, 'exceptional'],
+      [/\bvery clear\b/gi, 'lucid'],
+      [/\bvery bad\b/gi, 'detrimental'],
+      [/\bbig problem\b/gi, 'major challenge'],
+      [/\bgood result\b/gi, 'favorable outcome']
+    ]
+
+    let s = text
+    for (const [from, to] of replacements) {
+      s = s.replace(from, to)
+    }
+    return s
+  }
+
+  private enrichAcademicDiction(text: string): string {
+    const replacements: Array<[RegExp, string]> = [
+      [/\bshows that\b/gi, 'indicates that'],
+      [/\bpointed out\b/gi, 'noted'],
+      [/\bcame up with\b/gi, 'formulated'],
+      [/\bgives evidence\b/gi, 'provides evidence'],
+      [/\bways to\b/gi, 'methods to']
+    ]
+
+    let s = text
+    for (const [from, to] of replacements) {
+      s = s.replace(from, to)
+    }
+    return s
+  }
+
+  private finalizeProse(text: string): string {
+    return text
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+([.,!?;:])/g, '$1')
+      .replace(/([.!?])\s*([a-z])/g, (_, p, letter) => `${p} ${letter.toUpperCase()}`)
+      .trim()
+  }
+
+  /**
+   * Programmatic audit to verify that factual entities (citations, numbers, dates)
+   * in the original text are retained in the output without omission or distortion.
+   */
+  public verifyPreservation(original: string, rewritten: string): PreservationAudit {
+    const warnings: string[] = []
+    const preservedEntities: string[] = []
+    const missingEntities: string[] = []
+
+    // 1. Check citations: APA single & multi-source, narrative, IEEE brackets
+    const citationRegexes = [
+      /\([A-Z][A-Za-z\s.,&]+,?\s*(?:18|19|20)\d{2}[a-z]?(?:;\s*[A-Z][A-Za-z\s.,&]+,?\s*(?:18|19|20)\d{2}[a-z]?)*(?:,\s*p{1,2}\.?\s*\d+(?:-\d+)?)?\)/g,
+      /\b[A-Z][A-Za-z\s.,&]+\s+et\s+al\.\s*\((?:18|19|20)\d{2}[a-z]?(?:,\s*p{1,2}\.?\s*\d+(?:-\d+)?)?\)/g,
+      /\[\s*\d+(?:[–\-,]\s*\d+)*\s*\]/g,
+      /\([A-Z][A-Za-z]+\s+\d+(?:-\d+)?\)/g
+    ]
+
+    const origCitations: string[] = []
+    for (const regex of citationRegexes) {
+      const matches = original.match(regex) || []
+      for (const m of matches) {
+        if (!origCitations.includes(m)) origCitations.push(m)
+      }
+    }
+
+    for (const citation of origCitations) {
+      const normalizedCitation = citation.replace(/\s+/g, ' ')
+      if (rewritten.includes(citation) || rewritten.replace(/\s+/g, ' ').includes(normalizedCitation)) {
+        preservedEntities.push(citation)
+      } else {
+        missingEntities.push(citation)
+        warnings.push(`Citation '${citation}' was not found in the revised text.`)
+      }
+    }
+
+    // 2. Check direct quotations
+    const quoteRegex = /("[^"\r\n]{4,}"|“[^”\r\n]{4,}”)/g
+    const origQuotes = original.match(quoteRegex) || []
+    for (const quote of origQuotes) {
+      const cleanQuote = quote.replace(/^[“"]|[”"]$/g, '').trim()
+      if (rewritten.includes(quote) || rewritten.includes(cleanQuote)) {
+        preservedEntities.push(quote)
+      } else {
+        missingEntities.push(quote)
+        warnings.push(`Quotation '${quote}' was modified or omitted.`)
+      }
+    }
+
+    // 3. Check key numerical benchmarks, currency, percentages, p-values
+    const numRegex = /\b(?:\$|€|£)?\d+(?:\.\d+)?%?\b|p\s*<\s*0\.\d+/g
+    const origNums = Array.from(new Set(original.match(numRegex) || []))
+
+    for (const num of origNums) {
+      if (num.length >= 2 || num.includes('%') || num.includes('$') || num.startsWith('p')) {
+        if (rewritten.includes(num)) {
+          preservedEntities.push(num)
+        } else {
+          if (num.includes('%') || num.includes('$') || num.startsWith('p') || num.length >= 3) {
+            missingEntities.push(num)
+            warnings.push(`Key numerical datum '${num}' was omitted in revision.`)
           }
         }
       }
-      result = sentences.join(' ')
     }
 
-    return result.trim()
+    return {
+      verified: missingEntities.length === 0,
+      missingEntities,
+      preservedEntities,
+      warnings
+    }
   }
 }
+
+export const humanizationService = new HumanizationService()

@@ -3,6 +3,7 @@ import { geminiService } from '../services/geminiService'
 import { databaseService } from '../services/databaseService'
 import { academicAuditService } from '../services/academicAuditService'
 import { sessionSecurityService } from '../services/sessionSecurityService'
+import { sessionCacheService } from '../services/sessionCacheService'
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
@@ -177,8 +178,8 @@ export const transformText = async (req: Request, res: Response) => {
 
     const selectedMode = validModes.includes(mode) ? mode : 'academic'
 
-    // Perform transformation via advanced academic pipeline
-    const result = await geminiService.transform({
+    // Compute collision-resistant, parameter-aware cache key
+    const cacheKey = sessionCacheService.getCacheKey({
       text: trimmed,
       mode: selectedMode,
       tone: typeof tone === 'number' ? tone : 0.5,
@@ -188,6 +189,21 @@ export const transformText = async (req: Request, res: Response) => {
       highlights: Boolean(highlights),
       authorVoice: typeof authorVoice === 'string' ? authorVoice : 'scholarly',
       studentVoiceSample: typeof studentVoiceSample === 'string' ? studentVoiceSample : undefined
+    })
+
+    // Perform transformation via thread-safe single-flight session cache
+    const result = await sessionCacheService.getOrCompute(cacheKey, async () => {
+      return await geminiService.transform({
+        text: trimmed,
+        mode: selectedMode,
+        tone: typeof tone === 'number' ? tone : 0.5,
+        intensity: ['subtle', 'balanced', 'deep'].includes(intensity) ? intensity : 'balanced',
+        targetLength: ['shorter', 'same', 'longer'].includes(targetLength) ? targetLength : 'same',
+        vocabulary: Boolean(vocabulary),
+        highlights: Boolean(highlights),
+        authorVoice: typeof authorVoice === 'string' ? authorVoice : 'scholarly',
+        studentVoiceSample: typeof studentVoiceSample === 'string' ? studentVoiceSample : undefined
+      })
     })
 
     const effectiveSessionId = identity.verifiedSessionId || (typeof sessionId === 'string' ? sessionId : undefined)

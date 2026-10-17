@@ -8,13 +8,14 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "ts-node tests/api.test.ts",
+    "test:cache": "ts-node tests/session_cache.test.ts",
     "test:security": "ts-node tests/security_isolation.test.ts",
     "test:samples": "ts-node tests/writing_quality_10_samples.test.ts",
     "test:browser": "node tests/browser_automation.test.js",
     "test:qa": "ts-node tests/quality_assurance.test.ts",
     "test:quality": "ts-node tests/writing_quality_evaluation.test.ts",
     "test:live": "ts-node tests/final_verification.ts",
-    "test:all": "ts-node tests/api.test.ts && ts-node tests/security_isolation.test.ts && ts-node tests/quality_assurance.test.ts && ts-node tests/writing_quality_10_samples.test.ts && node tests/browser_automation.test.js"
+    "test:all": "ts-node tests/api.test.ts && ts-node tests/session_cache.test.ts && ts-node tests/security_isolation.test.ts && ts-node tests/quality_assurance.test.ts && ts-node tests/writing_quality_10_samples.test.ts && node tests/browser_automation.test.js"
   },
 
   "keywords": [

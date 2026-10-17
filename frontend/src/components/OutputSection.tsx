@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { DualPreview } from './DualPreview'
 import { MetricsDisplay } from './MetricsDisplay'
 import { AcademicReportData } from './AcademicReportModal'
+import { AIDetectionMeter } from './AIDetectionMeter'
+import { calculateAIDetectionMetrics, AIDetectionMetrics } from '../utils/clientHumanizer'
 
 export interface FactualIntegrityReport {
   verified: boolean
@@ -25,6 +27,7 @@ interface OutputSectionProps {
   showMetrics?: boolean
   showDualPreview?: boolean
   onTextChange?: (newText: string) => void
+  aiMetrics?: AIDetectionMetrics
   // Academic Capabilities
   academicReport?: AcademicReportData | null
   onOpenAcademicReport?: () => void
@@ -43,6 +46,7 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
   changesExplanation,
   factualIntegrity,
   onTextChange,
+  aiMetrics,
   academicReport,
   onOpenAcademicReport,
 }) => {
@@ -51,6 +55,10 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
   const [isEditing, setIsEditing] = useState(false)
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg'>('base')
   const [showExplanationCard, setShowExplanationCard] = useState(true)
+
+  // Compute live real-time AI detection metrics dynamically whenever text updates
+  const computedMetrics = useMemo(() => calculateAIDetectionMetrics(text), [text])
+  const effectiveMetrics = aiMetrics || computedMetrics
 
   const handleCopy = () => {
     if (!text) return
@@ -243,6 +251,9 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
         </div>
       ) : text ? (
         <>
+          {/* 0% AI Detection / 100% Human Score UI Meter */}
+          <AIDetectionMeter metrics={effectiveMetrics} isDark={isDark} />
+
           {viewMode === 'text' && (
             <div className="relative">
               {/* Font Sizer & Inline Edit Toggle */}

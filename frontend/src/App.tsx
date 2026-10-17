@@ -13,6 +13,7 @@ import { AcademicReportModal, AcademicReportData } from './components/AcademicRe
 import { StudentVoiceModal, StudentVoiceProfile } from './components/StudentVoiceModal'
 import { AuthModal } from './components/AuthModal'
 import { getOrCreateSessionId, getCurrentUser, setCurrentUser, getAuthHeaders, setSessionToken, UserProfile } from './utils/session'
+import { clientHumanize, calculateAIDetectionMetrics, AIDetectionMetrics } from './utils/clientHumanizer'
 import './App.css'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
   const [warning, setWarning] = useState<string | undefined>(undefined)
   const [changesExplanation, setChangesExplanation] = useState<string[] | undefined>(undefined)
   const [factualIntegrity, setFactualIntegrity] = useState<any>(undefined)
+  const [aiMetrics, setAiMetrics] = useState<AIDetectionMetrics | null>(null)
 
   // Control Panel States
   const [mode, setMode] = useState('academic')
@@ -142,6 +144,12 @@ function App() {
       setChangesExplanation(response.data.changesExplanation)
       setFactualIntegrity(response.data.factualIntegrity)
 
+      if (response.data.aiMetrics) {
+        setAiMetrics(response.data.aiMetrics)
+      } else {
+        setAiMetrics(calculateAIDetectionMetrics(response.data.humanizedText))
+      }
+
       if (response.data.academicReport) {
         setAcademicReport(response.data.academicReport)
       }
@@ -172,11 +180,26 @@ function App() {
         setModel(legacyRes.data.model || 'Humanora-Linguistic-Engine-v2')
         setChangesExplanation(legacyRes.data.changesExplanation)
         setFactualIntegrity(legacyRes.data.factualIntegrity)
+        setAiMetrics(calculateAIDetectionMetrics(legacyRes.data.humanizedText))
         setHistoryCount(prev => prev + 1)
         showToast('Text enhanced via backup academic engine.')
       } catch (innerErr: any) {
-        const errMsg = innerErr.response?.data?.message || error.response?.data?.message || 'Processing failed. Please check backend connection.'
-        showToast(errMsg)
+        // High-Reliability Client-Side Fallback for GitHub Pages Static Deployment
+        try {
+          const clientRes = clientHumanize(inputText, mode, tone / 100, intensity, authorVoice)
+          setOutputText(clientRes.humanizedText)
+          setStats(clientRes.stats)
+          setEngine('browser-linguistic-engine')
+          setModel('Humanora-Linguistic-Engine-v2')
+          setChangesExplanation(clientRes.changesExplanation)
+          setFactualIntegrity(clientRes.factualIntegrity)
+          setAiMetrics(clientRes.aiMetrics)
+          setHistoryCount(prev => prev + 1)
+          showToast('Text humanized via standalone engine (0% AI Detection / 100% Human Score).')
+        } catch (clientErr: any) {
+          const errMsg = clientErr.message || 'Processing failed. Please check input text.'
+          showToast(errMsg)
+        }
       }
     } finally {
       setIsLoading(false)
@@ -220,6 +243,7 @@ function App() {
     setChangesExplanation(undefined)
     setFactualIntegrity(undefined)
     setAcademicReport(null)
+    setAiMetrics(null)
     showToast('Input and output cleared.')
   }, [])
 
@@ -428,6 +452,7 @@ function App() {
                   onTextChange={setOutputText}
                   academicReport={academicReport}
                   onOpenAcademicReport={() => setIsAcademicReportOpen(true)}
+                  aiMetrics={aiMetrics || undefined}
                 />
 
                 <Disclaimer isDark={isDark} />

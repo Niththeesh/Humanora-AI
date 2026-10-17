@@ -1,0 +1,17 @@
+{
+  "name": "humanora-ai-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Humanora AI — Professional AI Writing Assistant & Academic Enhancement Platform",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:docs": "node -e \"const fs = require('fs'); fs.cpSync('frontend/dist', 'docs', { recursive: true });\"",
+    "build": "npm run build --prefix frontend && npm run build:docs && npm run build --prefix backend",
+    "test": "npm test --prefix backend",
+    "test:cache": "npm run test:cache --prefix backend",
+    "test:security": "npm run test:security --prefix backend",
+    "test:all": "npm run test:all --prefix backend"
+  }
+}

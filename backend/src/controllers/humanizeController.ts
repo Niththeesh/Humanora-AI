@@ -1,13 +1,7 @@
 import { Request, Response } from 'express'
 import { geminiService } from '../services/geminiService'
 import { databaseService } from '../services/databaseService'
-
-const responseCache = new Map<string, any>()
-const CACHE_DURATION = 5 * 60 * 1000
-
-function getCacheKey(text: string, mode: string): string {
-  return `${mode}:${text.substring(0, 100)}`
-}
+import { sessionCacheService } from '../services/sessionCacheService'
 
 export const humanizeText = async (req: Request, res: Response) => {
   try {
@@ -45,25 +39,30 @@ export const humanizeText = async (req: Request, res: Response) => {
 
     const cleanText = text.trim()
     const selectedMode = mode || 'standard'
+    const intensity = complexity && complexity > 0.6 ? 'deep' : complexity && complexity < 0.4 ? 'subtle' : 'balanced'
 
-    const cacheKey = getCacheKey(cleanText, selectedMode)
-    if (responseCache.has(cacheKey)) {
-      const cached = responseCache.get(cacheKey)
-      if (Date.now() - cached.timestamp < CACHE_DURATION) {
-        return res.json(cached.data)
-      } else {
-        responseCache.delete(cacheKey)
-      }
-    }
-
-    const transformResult = await geminiService.transform({
+    // Compute collision-resistant, parameter-aware cache key
+    const cacheKey = sessionCacheService.getCacheKey({
       text: cleanText,
       mode: selectedMode,
-      tone: tone,
-      intensity: complexity && complexity > 0.6 ? 'deep' : complexity && complexity < 0.4 ? 'subtle' : 'balanced',
+      tone: typeof tone === 'number' ? tone : undefined,
+      intensity,
       vocabulary: Boolean(vocabulary),
       highlights: Boolean(highlights),
-      authorVoice: authorVoice
+      authorVoice: typeof authorVoice === 'string' ? authorVoice : undefined
+    })
+
+    // Thread-safe single-flight cached computation: eliminates stampede & deduplicates concurrent requests
+    const transformResult = await sessionCacheService.getOrCompute(cacheKey, async () => {
+      return await geminiService.transform({
+        text: cleanText,
+        mode: selectedMode,
+        tone: tone,
+        intensity,
+        vocabulary: Boolean(vocabulary),
+        highlights: Boolean(highlights),
+        authorVoice: authorVoice
+      })
     })
 
     const result: any = {
@@ -91,6 +90,7 @@ export const humanizeText = async (req: Request, res: Response) => {
       highlights: transformResult.highlights || []
     }
 
+    // Record transformation with caller's session identity (preventing cross-session history drop)
     databaseService.saveTransformation({
       sessionId: typeof sessionId === 'string' ? sessionId : undefined,
       mode: transformResult.mode,
@@ -106,16 +106,6 @@ export const humanizeText = async (req: Request, res: Response) => {
       latencyMs: transformResult.stats.processingTimeMs
     }).catch(err => console.warn('[humanizeController] Background save warning:', err))
 
-    responseCache.set(cacheKey, {
-      data: result,
-      timestamp: Date.now()
-    })
-
-    if (responseCache.size > 100) {
-      const firstKey = responseCache.keys().next().value
-      if (firstKey) responseCache.delete(firstKey)
-    }
-
     res.json(result)
   } catch (error) {
     console.error('Humanization error:', error)
@@ -125,3 +115,4 @@ export const humanizeText = async (req: Request, res: Response) => {
     })
   }
 }
+

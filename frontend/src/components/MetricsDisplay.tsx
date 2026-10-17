@@ -109,8 +109,8 @@ function calculateMetrics(_original: string, humanized: string): Metrics {
   const uniqueHumanWords = new Set(humanWords.map(w => w.toLowerCase())).size
   const varietyScore = Math.min(96, Math.max(45, Math.round((uniqueHumanWords / humanWords.length) * 110)))
 
-  // Engagement
-  const transitions = ['however', 'furthermore', 'moreover', 'additionally', 'nevertheless', 'consequently', 'similarly', 'conversely', 'notably', 'specifically']
+  // Engagement (natural human connectors and punctuation variety)
+  const transitions = ['however', 'in turn', 'nevertheless', 'consequently', 'similarly', 'conversely', 'notably', 'specifically', 'in contrast', 'meanwhile']
   const transitionCount = transitions.filter(t => humanized.toLowerCase().includes(t)).length
   const punctuationVariety = (humanized.match(/[!?;:—]/g) || []).length
   const engagementScore = Math.min(95, Math.max(45, Math.round(50 + (transitionCount * 6) + (punctuationVariety * 3))))

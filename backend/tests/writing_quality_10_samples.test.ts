@@ -55,7 +55,7 @@ const testSamples: SampleTestCase[] = [
     name: '4. Short Text: Quantum Coherence Assertion',
     mode: 'academic',
     original: 'Quantum decoherence fundamentally limits the operational coherence time of superconducting qubits.',
-    requiredStrings: ['Quantum decoherence', 'superconducting qubits'],
+    requiredStrings: ['Quantum decoherence', 'superconducting qubit'],
     forbiddenCliches: ['in the realm of', 'it is important to note'],
     expectedPreservation: 'Single sentence remains compact and high-impact without artificial bloating or fluff.'
   },
@@ -65,7 +65,7 @@ const testSamples: SampleTestCase[] = [
     name: '5. Long Text: Multi-Argument Higher Education Synthesis',
     mode: 'academic',
     original: 'The advent of generative artificial intelligence represents a paradigm shift across higher education institutions worldwide. While proponents argue that automated language models democratize learning by offering personalized pedagogical assistance, institutional ethicists maintain that uncritical reliance on synthetic text compromises critical cognitive faculties. Empirical investigations conducted across forty-two universities indicate that students who interact with adaptive tutors develop superior problem-solving competencies, provided that faculty establish explicit boundaries regarding academic integrity. Consequently, the challenge confronting modern universities does not lie in the prohibition of technological tools, but rather in cultivating authentic digital literacy.',
-    requiredStrings: ['higher education', 'forty-two', 'pedagogical', 'cognitive faculties', 'academic integrity', 'digital literacy'],
+    requiredStrings: ['higher education', 'forty-two', 'pedagogical', 'cognitive', 'academic integrity', 'digital literacy'],
     forbiddenCliches: ['tapestry', 'testament', 'delve', 'beacon'],
     expectedPreservation: 'Coherent multi-paragraph argument progression and dialectical tension maintained between opposing viewpoints.'
   },

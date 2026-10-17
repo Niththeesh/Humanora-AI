@@ -103,8 +103,26 @@ app.get('/api/health', (_req: Request, res: Response) => {
   })
 })
 
-// 404 handler
+// Static file serving for full-stack deployments
+const distPath = path.resolve(__dirname, '../../frontend/dist')
+const docsPath = path.resolve(__dirname, '../../docs')
+const staticFolder = require('fs').existsSync(distPath) ? distPath : docsPath
+if (require('fs').existsSync(staticFolder)) {
+  app.use(express.static(staticFolder))
+}
+
+// 404 handler (API-scoped or fallback to index.html for SPA routes)
 app.use((req: Request, res: Response) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({
+      error: 'Not Found',
+      message: `Route ${req.path} not found`
+    })
+  }
+  const indexPath = path.join(staticFolder, 'index.html')
+  if (require('fs').existsSync(indexPath)) {
+    return res.sendFile(indexPath)
+  }
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.path} not found`

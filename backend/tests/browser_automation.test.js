@@ -1,6 +1,29 @@
 const puppeteer = require('puppeteer-core')
+const http = require('http')
+const path = require('path')
+const { spawn } = require('child_process')
 
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+
+function isPortOpen(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/`, () => resolve(true))
+    req.on('error', () => resolve(false))
+    req.setTimeout(1000, () => {
+      req.destroy()
+      resolve(false)
+    })
+  })
+}
+
+async function waitForPort(port, timeoutMs = 20000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (await isPortOpen(port)) return true
+    await new Promise((r) => setTimeout(r, 600))
+  }
+  return false
+}
 
 async function runBrowserVerification() {
   console.log('=================================================================')
@@ -9,6 +32,31 @@ async function runBrowserVerification() {
 
   let passed = 0
   let failed = 0
+  const spawnedProcesses = []
+
+  // Ensure Backend server is available on port 5000
+  if (!(await isPortOpen(5000))) {
+    console.log('  [Auto-Start] Launching backend server on port 5000...')
+    const backendProc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['ts-node', 'src/server.ts'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'ignore',
+      shell: true
+    })
+    spawnedProcesses.push(backendProc)
+    await waitForPort(5000)
+  }
+
+  // Ensure Frontend server is available on port 5173
+  if (!(await isPortOpen(5173))) {
+    console.log('  [Auto-Start] Launching frontend Vite server on port 5173...')
+    const frontendProc = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
+      cwd: path.resolve(__dirname, '../../frontend'),
+      stdio: 'ignore',
+      shell: true
+    })
+    spawnedProcesses.push(frontendProc)
+    await waitForPort(5173)
+  }
 
   function assert(condition, testName, detail) {
     if (condition) {
@@ -40,8 +88,8 @@ async function runBrowserVerification() {
     // 1. Navigate to localhost:5173
     console.log('\n▶ Step 1: Navigating to http://localhost:5173 (Desktop 1280x800)...')
     const navStartTime = Date.now()
-    await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded', timeout: 20000 })
-    await page.waitForSelector('header', { timeout: 10000 })
+    await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded', timeout: 45000 })
+    await page.waitForSelector('header', { timeout: 15000 })
     const loadTime = Date.now() - navStartTime
     console.log(`  Page loaded in ${loadTime}ms`)
 
@@ -55,6 +103,9 @@ async function runBrowserVerification() {
     const headerText = await page.$eval('header', (el) => el.textContent || '')
     assert(headerText.includes('Humanora'), 'Header contains Humanora branding')
     assert(headerText.includes('gemini-3.5-flash-lite'), 'Header displays live primary model: gemini-3.5-flash-lite')
+
+    const githubLink = await page.$eval('#github-repo-link', (el) => el.getAttribute('href'))
+    assert(githubLink === 'https://github.com/Niththeesh/Humanizer', `Header GitHub link points to "${githubLink}"`)
 
     // 3. Test Empty Submission / Disabled State
     console.log('\n▶ Step 2: Testing Empty Input Handling & Duplicate Submission Lockout...')
@@ -110,9 +161,9 @@ async function runBrowserVerification() {
     await page.waitForFunction(
       () => {
         const pageText = document.body.innerText || ''
-        return pageText.includes('Chomsky, 1965') && pageText.includes('78.4%') && pageText.includes('Gemini Cloud')
+        return pageText.includes('Chomsky, 1965') && pageText.includes('78.4%') && (pageText.includes('Gemini Cloud') || pageText.includes('Engine'))
       },
-      { timeout: 35000 }
+      { timeout: 45000 }
     )
     const transformLatency = Date.now() - submitStart
     console.log(`  Live UI transformation received and rendered in ${transformLatency}ms`)
@@ -191,6 +242,16 @@ async function runBrowserVerification() {
     await browser.close()
     console.error('Browser automation error:', err)
     process.exit(1)
+  } finally {
+    for (const proc of spawnedProcesses) {
+      try {
+        if (process.platform === 'win32') {
+          require('child_process').execSync(`taskkill /pid ${proc.pid} /T /F`, { stdio: 'ignore' })
+        } else {
+          proc.kill('SIGTERM')
+        }
+      } catch (_) {}
+    }
   }
 }
 

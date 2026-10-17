@@ -14,6 +14,7 @@
     "test:browser": "node tests/browser_automation.test.js",
     "test:qa": "ts-node tests/quality_assurance.test.ts",
     "test:quality": "ts-node tests/writing_quality_evaluation.test.ts",
+    "test:diagnosis": "ts-node tests/quillbot_diagnosis.ts",
     "test:live": "ts-node tests/final_verification.ts",
     "test:all": "ts-node tests/api.test.ts && ts-node tests/session_cache.test.ts && ts-node tests/security_isolation.test.ts && ts-node tests/quality_assurance.test.ts && ts-node tests/writing_quality_10_samples.test.ts && node tests/browser_automation.test.js"
   },

@@ -71,6 +71,7 @@ export const humanizeText = async (req: Request, res: Response) => {
       mode: transformResult.mode,
       engine: transformResult.engine,
       model: transformResult.model,
+      isFallback: transformResult.isFallback,
       parameters: {
         tone: transformResult.parameters.tone,
         complexity: complexity ?? 0.5,
@@ -86,6 +87,9 @@ export const humanizeText = async (req: Request, res: Response) => {
       },
       changesExplanation: transformResult.changesExplanation,
       factualIntegrity: transformResult.factualIntegrity,
+      academicReport: transformResult.academicReport,
+      studentVoiceProfile: transformResult.studentVoiceProfile,
+      aiMetrics: transformResult.aiMetrics,
       warning: transformResult.warning,
       highlights: transformResult.highlights || []
     }

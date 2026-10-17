@@ -36,6 +36,7 @@ function App() {
   const [changesExplanation, setChangesExplanation] = useState<string[] | undefined>(undefined)
   const [factualIntegrity, setFactualIntegrity] = useState<any>(undefined)
   const [aiMetrics, setAiMetrics] = useState<AIDetectionMetrics | null>(null)
+  const [isFallback, setIsFallback] = useState<boolean>(false)
 
   // Control Panel States
   const [mode, setMode] = useState('academic')
@@ -137,6 +138,7 @@ function App() {
       }
 
       setOutputText(response.data.humanizedText)
+      setIsFallback(Boolean(response.data.isFallback))
 
       setStats(response.data.stats)
       setEngine(response.data.engine)
@@ -161,7 +163,13 @@ function App() {
       if (!isEphemeral) {
         setHistoryCount(prev => prev + 1)
       }
-      showToast(isEphemeral ? 'Refined in Ephemeral Mode (Zero DB Persistence)' : 'Academic transformation completed!')
+      showToast(
+        response.data.isFallback
+          ? 'Notice: Refined using local fallback engine (cloud unavailable).'
+          : isEphemeral 
+            ? 'Refined in Ephemeral Mode (Zero DB Persistence)' 
+            : 'Writing transformation completed!'
+      )
     } catch (error: any) {
       console.warn('Primary endpoint failed, attempting fallback:', error)
       try {
@@ -175,6 +183,7 @@ function App() {
           highlights,
         }, { timeout: 15000 })
         setOutputText(legacyRes.data.humanizedText)
+        setIsFallback(Boolean(legacyRes.data.isFallback || legacyRes.data.engine !== 'gemini'))
         setStats(legacyRes.data.stats)
         setEngine(legacyRes.data.engine || 'linguistic-engine')
         setModel(legacyRes.data.model || 'Humanora-Linguistic-Engine-v2')
@@ -182,12 +191,13 @@ function App() {
         setFactualIntegrity(legacyRes.data.factualIntegrity)
         setAiMetrics(calculateAIDetectionMetrics(legacyRes.data.humanizedText))
         setHistoryCount(prev => prev + 1)
-        showToast('Text enhanced via backup academic engine.')
+        showToast('Text enhanced via backup linguistic engine (Notice: fallback mode).')
       } catch (innerErr: any) {
         // High-Reliability Client-Side Fallback for GitHub Pages Static Deployment
         try {
           const clientRes = clientHumanize(inputText, mode, tone / 100, intensity, authorVoice)
           setOutputText(clientRes.humanizedText)
+          setIsFallback(true)
           setStats(clientRes.stats)
           setEngine('browser-linguistic-engine')
           setModel('Humanora-Linguistic-Engine-v2')
@@ -195,7 +205,7 @@ function App() {
           setFactualIntegrity(clientRes.factualIntegrity)
           setAiMetrics(clientRes.aiMetrics)
           setHistoryCount(prev => prev + 1)
-          showToast('Text humanized via standalone engine (0% AI Detection / 100% Human Score).')
+          showToast('Offline Mode: Text refined using browser linguistic rules (cloud LLM unavailable).')
         } catch (clientErr: any) {
           const errMsg = clientErr.message || 'Processing failed. Please check input text.'
           showToast(errMsg)
@@ -453,6 +463,7 @@ function App() {
                   academicReport={academicReport}
                   onOpenAcademicReport={() => setIsAcademicReportOpen(true)}
                   aiMetrics={aiMetrics || undefined}
+                  isFallback={isFallback}
                 />
 
                 <Disclaimer isDark={isDark} />

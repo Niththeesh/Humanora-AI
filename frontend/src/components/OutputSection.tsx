@@ -28,6 +28,7 @@ interface OutputSectionProps {
   showDualPreview?: boolean
   onTextChange?: (newText: string) => void
   aiMetrics?: AIDetectionMetrics
+  isFallback?: boolean
   // Academic Capabilities
   academicReport?: AcademicReportData | null
   onOpenAcademicReport?: () => void
@@ -47,6 +48,7 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
   factualIntegrity,
   onTextChange,
   aiMetrics,
+  isFallback,
   academicReport,
   onOpenAcademicReport,
 }) => {
@@ -124,15 +126,15 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
 
           {engine && (
             <span className={`text-[11px] font-mono px-2.5 py-0.5 rounded border flex items-center gap-1.5 ${
-              engine === 'gemini' 
+              engine === 'gemini' && !isFallback
                 ? 'bg-gold-500/10 text-gold-300 border-gold-500/20' 
-                : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${engine === 'gemini' ? 'bg-gold-400' : 'bg-blue-400'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${engine === 'gemini' && !isFallback ? 'bg-gold-400' : 'bg-amber-400'}`} />
               <span>
-                {engine === 'gemini' 
+                {engine === 'gemini' && !isFallback 
                   ? `Gemini Cloud (${model || 'Active'})` 
-                  : `Offline Linguistic Engine (${model || 'Local'})`}
+                  : `Offline Linguistic Engine (Fallback: ${model || 'Local'})`}
               </span>
             </span>
           )}
@@ -203,8 +205,23 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
         </div>
       </div>
 
+      {/* Fallback Disclosure Notice */}
+      {isFallback && (
+        <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2.5 shadow-sm">
+          <span className="text-base text-amber-400 mt-[-2px]">⚠️</span>
+          <div>
+            <span className="font-bold block text-amber-300">
+              Transparent Disclosure: Local Heuristic Fallback Used
+            </span>
+            <span className="text-amber-200/90 leading-relaxed block mt-0.5">
+              Cloud AI generation was unavailable (quota limit or connection issue). Text was processed using the local rule-based engine. Rule-based synonym de-cluttering and cadence modulation were applied, but full semantic restructuring requires active cloud connectivity.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Warning Notice if any */}
-      {warning && (
+      {warning && !isFallback && (
         <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
           <span>⚠</span>
           <span>{warning}</span>

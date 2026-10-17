@@ -677,7 +677,8 @@ export class HumanizationService {
   }
 
   /**
-   * Calculates genuine burstiness and perplexity metrics for 0% AI detection verification.
+   * Calculates authentic writing cadence, burstiness, and lexical diversity telemetry.
+   * Note: These are linguistic heuristics, not guaranteed ground-truth detector bypasses.
    */
   public calculateAIDetectionMetrics(text: string) {
     const clean = text.trim()
@@ -692,11 +693,12 @@ export class HumanizationService {
         longSentenceRatio: 0,
         clicheCount: 0,
         status: 'analyzing' as const,
+        disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
         bypassedDetectors: {
-          turnitin: '0% AI',
-          gptZero: '0% AI',
-          originality: '0% AI',
-          copyleaks: '0% AI'
+          turnitin: 'Heuristic: Varied Cadence',
+          gptZero: 'Heuristic: Dynamic Flow',
+          originality: 'Heuristic: High Perplexity',
+          copyleaks: 'Heuristic: Varied Syntax'
         }
       }
     }
@@ -715,30 +717,37 @@ export class HumanizationService {
     const shortRatio = sentences.length > 0 ? (shortSentences / sentences.length) * 100 : 0
     const longRatio = sentences.length > 0 ? (longSentences / sentences.length) * 100 : 0
 
-    const rawBurstiness = Math.min(100, Math.round(50 + (variance * 4.5) + (shortRatio > 15 ? 10 : 0) + (longRatio > 15 ? 10 : 0)))
-    const burstinessScore = Math.max(88, Math.min(100, rawBurstiness))
+    // Varied sentence length cadence (burstiness)
+    const rawBurstiness = Math.min(100, Math.round(50 + (variance * 4.5) + (shortRatio > 10 ? 8 : 0) + (longRatio > 10 ? 8 : 0)))
+    const burstinessScore = Math.max(70, Math.min(100, rawBurstiness))
 
+    // Vocabulary richness (Type-Token Ratio)
     const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z0-9]/g, ''))).size
     const typeTokenRatio = words.length > 0 ? (uniqueWords / words.length) : 0.8
+    const rawPerplexity = Math.min(100, Math.round((typeTokenRatio * 90) + 15))
+    const perplexityScore = Math.max(75, Math.min(100, rawPerplexity))
 
-    const rawPerplexity = Math.min(100, Math.round((typeTokenRatio * 90) + 20))
-    const perplexityScore = Math.max(90, Math.min(100, rawPerplexity))
+    // Estimate heuristic AI score based on cadence monotony and repetitive structure
+    const monotonyPenalty = variance < 3 ? 15 : variance < 5 ? 8 : 2
+    const heuristicAi = Math.min(25, monotonyPenalty)
+    const humanScore = 100 - heuristicAi
 
     return {
-      aiScore: 0,
-      humanScore: 100,
+      aiScore: heuristicAi,
+      humanScore,
       burstinessScore,
       perplexityScore,
       sentenceVariance: Math.round(variance * 10) / 10,
       shortSentenceRatio: Math.round(shortRatio),
       longSentenceRatio: Math.round(longRatio),
       clicheCount: 0,
-      status: 'verified_human' as const,
+      status: 'analyzed' as const,
+      disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
       bypassedDetectors: {
-        turnitin: '0% AI',
-        gptZero: '0% AI',
-        originality: '0% AI',
-        copyleaks: '0% AI'
+        turnitin: 'Varied Cadence',
+        gptZero: 'Dynamic Flow',
+        originality: 'High Perplexity',
+        copyleaks: 'Diverse Syntax'
       }
     }
   }

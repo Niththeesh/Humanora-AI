@@ -32,6 +32,7 @@ export interface CachedTransformation {
   mode: string
   engine: 'gemini' | 'linguistic-engine'
   model: string
+  isFallback?: boolean
   parameters: {
     tone?: number
     complexity?: number
@@ -53,6 +54,7 @@ export interface CachedTransformation {
   studentVoiceProfile?: any
   warning?: string
   highlights?: any[]
+  aiMetrics?: any
 }
 
 interface CacheEntry<T> {
@@ -197,7 +199,10 @@ export class SessionCacheService {
     const computePromise = (async () => {
       try {
         const result = await computeFn()
-        this.set(key, result, ttlMs)
+        // Only cache genuine cloud transformations; never poison cache with degraded fallback responses
+        if (!result.isFallback && result.engine === 'gemini') {
+          this.set(key, result, ttlMs)
+        }
         return result
       } finally {
         // Guaranteed cleanup of in-flight tracking in all scenarios

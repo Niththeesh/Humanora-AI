@@ -8,15 +8,16 @@
  */
 
 export interface AIDetectionMetrics {
-  aiScore: number // 0%
-  humanScore: number // 100%
+  aiScore: number
+  humanScore: number
   burstinessScore: number // 0 - 100 (high = human)
   perplexityScore: number // 0 - 100 (high = human)
   sentenceVariance: number // Std deviation of sentence lengths
   shortSentenceRatio: number // % of sentences <= 8 words
   longSentenceRatio: number // % of sentences >= 22 words
   clicheCount: number // Number of detected AI clichés
-  status: 'verified_human' | 'analyzing'
+  status: 'verified_human' | 'analyzing' | 'analyzed'
+  disclaimer: string
   bypassedDetectors: {
     turnitin: string
     gptZero: string
@@ -31,6 +32,7 @@ export interface ClientHumanizeResult {
   mode: string
   engine: 'browser-linguistic-engine'
   model: 'Humanora-Linguistic-Engine-v2'
+  isFallback: boolean
   stats: {
     originalLength: number
     humanizedLength: number
@@ -127,7 +129,8 @@ export const BANNED_AI_CLICHES: Array<[RegExp, string]> = [
 ]
 
 /**
- * Calculates genuine burstiness and perplexity metrics for 0% AI detection.
+ * Calculates writing burstiness, lexical variety, and heuristic cadence signals.
+ * AI detector estimates are heuristic statistical approximations, not ground truth.
  */
 export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
   const clean = text.trim()
@@ -142,11 +145,12 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
       longSentenceRatio: 0,
       clicheCount: 0,
       status: 'analyzing',
+      disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
       bypassedDetectors: {
-        turnitin: '0% AI',
-        gptZero: '0% AI',
-        originality: '0% AI',
-        copyleaks: '0% AI'
+        turnitin: 'Varied Cadence',
+        gptZero: 'Dynamic Flow',
+        originality: 'High Perplexity',
+        copyleaks: 'Diverse Syntax'
       }
     }
   }
@@ -166,11 +170,11 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
   const shortRatio = sentences.length > 0 ? (shortSentences / sentences.length) * 100 : 0
   const longRatio = sentences.length > 0 ? (longSentences / sentences.length) * 100 : 0
 
-  // Standard human text has high variance (stddev > 6 words) and a healthy mix of short & long
-  const rawBurstiness = Math.min(100, Math.round(50 + (variance * 4.5) + (shortRatio > 15 ? 10 : 0) + (longRatio > 15 ? 10 : 0)))
-  const burstinessScore = Math.max(88, Math.min(100, rawBurstiness))
+  // Standard human text exhibits sentence length variance
+  const rawBurstiness = Math.min(100, Math.round(50 + (variance * 4.5) + (shortRatio > 10 ? 8 : 0) + (longRatio > 10 ? 8 : 0)))
+  const burstinessScore = Math.max(70, Math.min(100, rawBurstiness))
 
-  // 2. Vocabulary unpredictability (Perplexity & Lexical Diversity)
+  // 2. Vocabulary variety (Perplexity & Lexical Diversity)
   const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z0-9]/g, ''))).size
   const typeTokenRatio = words.length > 0 ? (uniqueWords / words.length) : 0.8
   
@@ -181,11 +185,12 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
     if (matches) clicheCount += matches.length
   }
 
-  const rawPerplexity = Math.min(100, Math.round((typeTokenRatio * 90) + 20 - (clicheCount * 12)))
-  const perplexityScore = Math.max(90, Math.min(100, rawPerplexity))
+  const rawPerplexity = Math.min(100, Math.round((typeTokenRatio * 90) + 15 - (clicheCount * 5)))
+  const perplexityScore = Math.max(75, Math.min(100, rawPerplexity))
 
-  // When text has been passed through the Humanora humanizer, AI detection is guaranteed 0%
-  const aiScore = clicheCount === 0 ? 0 : Math.min(5, clicheCount * 2)
+  // Heuristic indicator based on cadence and clichés
+  const monotonyPenalty = variance < 3 ? 15 : variance < 5 ? 8 : 2
+  const aiScore = Math.min(25, monotonyPenalty + (clicheCount * 3))
   const humanScore = 100 - aiScore
 
   return {
@@ -197,12 +202,13 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
     shortSentenceRatio: Math.round(shortRatio),
     longSentenceRatio: Math.round(longRatio),
     clicheCount,
-    status: 'verified_human',
+    status: 'analyzed',
+    disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
     bypassedDetectors: {
-      turnitin: `${aiScore}% AI`,
-      gptZero: `${aiScore}% AI`,
-      originality: `${aiScore}% AI`,
-      copyleaks: `${aiScore}% AI`
+      turnitin: 'Varied Cadence',
+      gptZero: 'Dynamic Flow',
+      originality: 'High Perplexity',
+      copyleaks: 'Diverse Syntax'
     }
   }
 }
@@ -355,6 +361,7 @@ export function clientHumanize(
     mode,
     engine: 'browser-linguistic-engine',
     model: 'Humanora-Linguistic-Engine-v2',
+    isFallback: true,
     stats: {
       originalLength: clean.length,
       humanizedLength: transformedText.length,
@@ -370,10 +377,10 @@ export function clientHumanize(
     },
     changesExplanation: [
       'Eliminated predictable AI transition clichés and formulaic throat-clearing.',
-      'Modulated cadence and burstiness: injected varied sentence lengths for natural human rhythm.',
-      'Streamlined passive nominalizations into active, punchy expressions (High Perplexity).',
+      'Modulated cadence: injected varied sentence lengths for natural human rhythm.',
+      'Streamlined passive nominalizations into active, direct expressions.',
       'Preserved 100% of all in-text citations, empirical metrics, and core semantic meaning.',
-      'Verified 0% AI detection probability across Turnitin, GPTZero, and Originality.ai.'
+      'Offline heuristic fallback: processed in-browser without cloud LLM connection.'
     ],
     factualIntegrity: {
       verified: true,

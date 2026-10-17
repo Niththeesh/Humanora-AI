@@ -2,8 +2,9 @@
 
 > **Humanora AI** is a premium-quality AI writing improvement platform inspired by professional writing assistants such as StealthWriter. It transforms robotic, rigid drafts into authentic, fluent human writing while strictly preserving facts, citations, proper nouns, and the author's original meaning.
 
-![Humanora AI](https://img.shields.io/badge/Humanora-AI-amber)
-![Gemini 3.8 Flash](https://img.shields.io/badge/Google%20Gemini-3.8%20Flash-blue)
+[![Humanora AI](https://img.shields.io/badge/Humanora-AI-amber)](https://github.com/Niththeesh/Humanora-AI)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Niththeesh%2FHumanora--AI-181717?logo=github)](https://github.com/Niththeesh/Humanora-AI)
+![Gemini 4 Argon](https://img.shields.io/badge/Google%20Gemini-4%20Argon-blue)
 ![Supabase PostgreSQL](https://img.shields.io/badge/Supabase-PostgreSQL-emerald)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Express](https://img.shields.io/badge/Express-4.18-gray)

@@ -21,6 +21,248 @@ export interface PreservationAudit {
 }
 
 export class HumanizationService {
+  private synonymHistory: string[] = []
+
+  private pickSynonym(candidates: string[]): string {
+    const available = candidates.filter(c => !this.synonymHistory.slice(-10).includes(c.toLowerCase()))
+    const chosen = available.length > 0 
+      ? available[Math.floor(Math.random() * available.length)] 
+      : candidates[Math.floor(Math.random() * candidates.length)]
+    this.synonymHistory.push(chosen.toLowerCase())
+    if (this.synonymHistory.length > 30) this.synonymHistory.shift()
+    return chosen
+  }
+
+  private applyDynamicSynonyms(text: string): string {
+    const synonymPool: Array<{ pattern: RegExp; candidates: string[] }> = [
+      {
+        pattern: /\bplays? a crucial role in\b/gi,
+        candidates: ['is central to', 'serves as a core driver of', 'is fundamental to', 'anchors', 'drives progress in', 'is key to']
+      },
+      {
+        pattern: /\bplays? a pivotal role in\b/gi,
+        candidates: ['anchors', 'remains essential for', 'is central to', 'serves as a core driver of']
+      },
+      {
+        pattern: /\bhave the ability to\b/gi,
+        candidates: ['can directly', 'possess the capacity to', 'are capable of', 'allow systems to']
+      },
+      {
+        pattern: /\bhas the ability to\b/gi,
+        candidates: ['can directly', 'possesses the capacity to', 'is capable of', 'allows systems to']
+      },
+      {
+        pattern: /\bvast amounts of\b/gi,
+        candidates: ['extensive volumes of', 'substantial datasets of', 'rich stores of', 'broad arrays of']
+      },
+      {
+        pattern: /\bvast quantities of\b/gi,
+        candidates: ['substantial stores of', 'extensive datasets of', 'massive volumes of']
+      },
+      {
+        pattern: /\butilize\b/gi,
+        candidates: ['apply', 'employ', 'harness', 'leverage', 'adopt', 'use']
+      },
+      {
+        pattern: /\butilizes\b/gi,
+        candidates: ['applies', 'employs', 'harnesses', 'leverages', 'adopts', 'uses']
+      },
+      {
+        pattern: /\butilizing\b/gi,
+        candidates: ['applying', 'employing', 'harnessing', 'leveraging', 'using']
+      },
+      {
+        pattern: /\butilized\b/gi,
+        candidates: ['applied', 'employed', 'harnessed', 'leveraged', 'used']
+      },
+      {
+        pattern: /\bmake an assumption about\b/gi,
+        candidates: ['project trajectories of', 'anticipate outcomes for', 'infer patterns within', 'assess trends in']
+      },
+      {
+        pattern: /\bmakes an assumption about\b/gi,
+        candidates: ['projects trajectories of', 'anticipates outcomes for', 'infers patterns within', 'assesses trends in']
+      },
+      {
+        pattern: /\bmake an assumption\b/gi,
+        candidates: ['project trajectories', 'anticipate outcomes', 'infer patterns', 'assess trends']
+      },
+      {
+        pattern: /\bmakes an assumption\b/gi,
+        candidates: ['projects trajectories', 'anticipates outcomes', 'infers patterns', 'assesses trends']
+      },
+      {
+        pattern: /\bthe multifaceted nature of\b/gi,
+        candidates: ['the inherent complexity of', 'the layered dynamics of', 'the interconnected dimensions of', 'the structural depth of']
+      },
+      {
+        pattern: /\bmultifaceted\b/gi,
+        candidates: ['layered', 'interconnected', 'complex', 'diverse', 'comprehensive']
+      },
+      {
+        pattern: /\bstands? as a testament to\b/gi,
+        candidates: ['illustrates the impact of', 'exemplifies', 'reflects the power of', 'demonstrates']
+      },
+      {
+        pattern: /\bis a testament to\b/gi,
+        candidates: ['demonstrates', 'exemplifies', 'reflects the maturity of', 'highlights']
+      },
+      {
+        pattern: /\bserves? as a testament to\b/gi,
+        candidates: ['demonstrates', 'illustrates', 'underscores', 'reflects']
+      },
+      {
+        pattern: /\ba wide variety of\b/gi,
+        candidates: ['a broad spectrum of', 'diverse sets of', 'numerous', 'varied']
+      },
+      {
+        pattern: /\ba wide range of\b/gi,
+        candidates: ['an extensive spectrum of', 'diverse', 'broad-ranging', 'varied']
+      },
+      {
+        pattern: /\ba myriad of\b/gi,
+        candidates: ['countless', 'numerous', 'diverse', 'multiple']
+      },
+      {
+        pattern: /\ba plethora of\b/gi,
+        candidates: ['substantial', 'numerous', 'plentiful', 'copious']
+      },
+      {
+        pattern: /\bintricate tapestry of\b/gi,
+        candidates: ['interconnected framework of', 'complex ecosystem of', 'integrated network of']
+      },
+      {
+        pattern: /\btapestry of\b/gi,
+        candidates: ['matrix of', 'network of', 'mosaic of', 'framework of']
+      },
+      {
+        pattern: /\bdigital landscape\b/gi,
+        candidates: ['digital domain', 'technological ecosystem', 'modern digital environment', 'contemporary sphere']
+      },
+      {
+        pattern: /\bfosters? an environment\b/gi,
+        candidates: ['cultivates conditions', 'encourages an atmosphere', 'promotes a setting', 'supports a framework']
+      },
+      {
+        pattern: /\bof paramount importance\b/gi,
+        candidates: ['critical', 'indispensable', 'vital', 'essential']
+      },
+      {
+        pattern: /\bparamount\b/gi,
+        candidates: ['critical', 'essential', 'pivotal', 'indispensable']
+      },
+      {
+        pattern: /\bdelves? into\b/gi,
+        candidates: ['explores', 'examines', 'investigates', 'probes']
+      },
+      {
+        pattern: /\bdelving into\b/gi,
+        candidates: ['exploring', 'examining', 'investigating', 'probing']
+      },
+      {
+        pattern: /\bdelve into\b/gi,
+        candidates: ['explore', 'examine', 'investigate', 'probe']
+      },
+      {
+        pattern: /\bever-evolving\b/gi,
+        candidates: ['continuously evolving', 'rapidly advancing', 'dynamic', 'developing']
+      }
+    ]
+
+    let result = text
+    for (const entry of synonymPool) {
+      result = result.replace(entry.pattern, () => this.pickSynonym(entry.candidates))
+    }
+    return result
+  }
+
+  private reorderClauses(sentence: string): string {
+    const s = sentence.trim()
+    if (s.includes('__HUMANORA_TOKEN_') || s.split(/\s+/).length < 8) return sentence
+
+    // 1. Purpose clause fronting: "X analyzes data in order to improve Y." -> "To improve Y, X analyzes data."
+    const purposeMatch = s.match(/^([^,;]+?)\s+(?:in order to|so as to)\s+([a-z][^.!?]+)[.!?]$/i)
+    if (purposeMatch && purposeMatch[1].split(/\s+/).length >= 5 && purposeMatch[2].split(/\s+/).length >= 3) {
+      const mainClause = purposeMatch[1].trim()
+      const purposeClause = purposeMatch[2].trim()
+      const lowerMain = mainClause.charAt(0).toLowerCase() + mainClause.slice(1)
+      return `To ${purposeClause}, ${lowerMain}.`
+    }
+
+    // 2. Trailing "by <verb>ing" fronting: "Clinicians can project trajectories by applying analytics." -> "By applying analytics, clinicians can project trajectories."
+    const byMatch = s.match(/^([^,;]+?)\s+by\s+([a-z]+ing\s+[^.!?]+)[.!?]$/i)
+    if (byMatch && byMatch[1].split(/\s+/).length >= 4 && byMatch[2].split(/\s+/).length >= 3) {
+      const main = byMatch[1].trim()
+      const byClause = byMatch[2].trim()
+      const lowerMain = main.charAt(0).toLowerCase() + main.slice(1)
+      return `By ${byClause}, ${lowerMain}.`
+    }
+
+    return sentence
+  }
+
+  private splitAndMergeCadence(text: string, _mode: string): string {
+    const rawSentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
+    if (rawSentences.length <= 1) return text
+
+    const processed: string[] = []
+
+    for (let i = 0; i < rawSentences.length; i++) {
+      let s = this.reorderClauses(rawSentences[i])
+      const words = s.split(/\s+/).length
+
+      // Split long compound sentences (> 20 words)
+      if (words > 20 && !s.includes('__HUMANORA_TOKEN_')) {
+        const relativeSplit = s.match(/^(.+?),\s*(?:which\s+(?:consequently|in\s+turn|directly|fundamentally)?\s*(?:allows|enables|leads\s+to|demonstrates|indicates|improves|shifts))(\s+.+)[.!?]$/i)
+        if (relativeSplit && relativeSplit[1].split(/\s+/).length >= 8 && relativeSplit[2].split(/\s+/).length >= 4) {
+          const first = relativeSplit[1].trim() + '.'
+          const verbAndRest = relativeSplit[2].trim()
+          const second = `This ${verbAndRest}.`
+          processed.push(first, second)
+          continue
+        }
+
+        const coordSplit = s.match(/^(.+?),\s*(?:and\s+therefore|and\s+as\s+a\s+result|and\s+consequently)\s+(.+)[.!?]$/i)
+        if (coordSplit && coordSplit[1].split(/\s+/).length >= 7 && coordSplit[2].split(/\s+/).length >= 5) {
+          const first = coordSplit[1].trim() + '.'
+          const second = `Consequently, ${coordSplit[2].trim().charAt(0).toLowerCase() + coordSplit[2].trim().slice(1)}.`
+          processed.push(first, second)
+          continue
+        }
+      }
+
+      processed.push(s)
+    }
+
+    // Merge adjacent short sentences (< 10 words) if neither contains shielded tokens
+    const merged: string[] = []
+    for (let i = 0; i < processed.length; i++) {
+      const cur = processed[i]
+      const next = processed[i + 1]
+
+      if (
+        next &&
+        cur.split(/\s+/).length <= 9 &&
+        next.split(/\s+/).length <= 9 &&
+        !cur.includes('__HUMANORA_TOKEN_') &&
+        !next.includes('__HUMANORA_TOKEN_') &&
+        cur.endsWith('.') &&
+        next.endsWith('.')
+      ) {
+        const first = cur.slice(0, -1)
+        const second = next.charAt(0).toLowerCase() + next.slice(1)
+        const connectors = ['; concurrently, ', '; at the same time, ', ', thereby enabling ']
+        const connector = connectors[Math.floor(Math.random() * connectors.length)]
+        merged.push(`${first}${connector}${second}`)
+        i++ // skip next
+      } else {
+        merged.push(cur)
+      }
+    }
+
+    return merged.join(' ')
+  }
+
   /**
    * Main transformation method with multi-tier processing
    */
@@ -43,7 +285,10 @@ export class HumanizationService {
     // Step 3: De-clutter formulaic AI throat-clearing and verbose padding
     result = this.pruneAICliches(result)
 
-    // Step 4: Apply mode-calibrated stylistic transformation
+    // Step 4: Apply dynamic synonym variation with no-repeat window
+    result = this.applyDynamicSynonyms(result)
+
+    // Step 5: Apply mode-calibrated stylistic transformation
     switch (mode) {
       case 'academic':
         result = this.academicTransform(result, tone, vocabulary)
@@ -74,16 +319,17 @@ export class HumanizationService {
         break
     }
 
-    // Step 5: Modulate sentence cadence (burstiness)
+    // Step 6: Sentence splitting, merging, clause reordering & cadence
+    result = this.splitAndMergeCadence(result, mode)
     result = this.modulateCadence(result, mode)
 
-    // Step 6: Tone and contraction alignment
+    // Step 7: Tone and contraction alignment
     result = this.alignToneAndContractions(result, tone, mode)
 
-    // Step 7: Restore all shielded citations, numbers, and quotations intact
+    // Step 8: Restore all shielded citations, numbers, and quotations intact
     result = this.restoreSensitiveTokens(result, restoreMap)
 
-    // Step 8: Final polishing (spacing, capitalization, punctuation integrity)
+    // Step 9: Final polishing (spacing, capitalization, punctuation integrity)
     result = this.finalizeProse(result)
 
     return result

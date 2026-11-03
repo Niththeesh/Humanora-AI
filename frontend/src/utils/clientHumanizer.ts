@@ -213,6 +213,100 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
   }
 }
 
+const synonymHistory: string[] = []
+
+function pickSynonym(candidates: string[]): string {
+  const available = candidates.filter(c => !synonymHistory.slice(-10).includes(c.toLowerCase()))
+  const chosen = available.length > 0 
+    ? available[Math.floor(Math.random() * available.length)] 
+    : candidates[Math.floor(Math.random() * candidates.length)]
+  synonymHistory.push(chosen.toLowerCase())
+  if (synonymHistory.length > 30) synonymHistory.shift()
+  return chosen
+}
+
+function applyDynamicSynonyms(text: string): string {
+  const pool: Array<{ pattern: RegExp; candidates: string[] }> = [
+    {
+      pattern: /\bplays? a crucial role in\b/gi,
+      candidates: ['is central to', 'serves as a core driver of', 'is fundamental to', 'anchors', 'drives progress in', 'is key to']
+    },
+    {
+      pattern: /\bplays? a pivotal role in\b/gi,
+      candidates: ['anchors', 'remains essential for', 'is central to', 'serves as a core driver of']
+    },
+    {
+      pattern: /\bhave the ability to\b/gi,
+      candidates: ['can directly', 'possess the capacity to', 'are capable of', 'allow systems to']
+    },
+    {
+      pattern: /\bhas the ability to\b/gi,
+      candidates: ['can directly', 'possesses the capacity to', 'is capable of', 'allows systems to']
+    },
+    {
+      pattern: /\bvast amounts of\b/gi,
+      candidates: ['extensive volumes of', 'substantial datasets of', 'rich stores of', 'broad arrays of']
+    },
+    {
+      pattern: /\butilize\b/gi,
+      candidates: ['apply', 'employ', 'harness', 'leverage', 'adopt', 'use']
+    },
+    {
+      pattern: /\butilizes\b/gi,
+      candidates: ['applies', 'employs', 'harnesses', 'leverages', 'adopts', 'uses']
+    },
+    {
+      pattern: /\bmake an assumption about\b/gi,
+      candidates: ['project trajectories of', 'anticipate outcomes for', 'infer patterns within', 'assess trends in']
+    },
+    {
+      pattern: /\bthe multifaceted nature of\b/gi,
+      candidates: ['the inherent complexity of', 'the layered dynamics of', 'the interconnected dimensions of']
+    },
+    {
+      pattern: /\bstands? as a testament to\b/gi,
+      candidates: ['illustrates the impact of', 'exemplifies', 'reflects the power of', 'demonstrates']
+    },
+    {
+      pattern: /\bdelves? into\b/gi,
+      candidates: ['explores', 'examines', 'investigates', 'probes']
+    },
+    {
+      pattern: /\bintricate tapestry of\b/gi,
+      candidates: ['interconnected framework of', 'complex ecosystem of', 'integrated network of']
+    }
+  ]
+
+  let result = text
+  for (const item of pool) {
+    result = result.replace(item.pattern, () => pickSynonym(item.candidates))
+  }
+  return result
+}
+
+function reorderClauses(sentence: string): string {
+  const s = sentence.trim()
+  if (s.includes('__SENSITIVE_TOKEN_') || s.split(/\s+/).length < 8) return sentence
+
+  const purposeMatch = s.match(/^([^,;]+?)\s+(?:in order to|so as to)\s+([a-z][^.!?]+)[.!?]$/i)
+  if (purposeMatch && purposeMatch[1].split(/\s+/).length >= 5 && purposeMatch[2].split(/\s+/).length >= 3) {
+    const mainClause = purposeMatch[1].trim()
+    const purposeClause = purposeMatch[2].trim()
+    const lowerMain = mainClause.charAt(0).toLowerCase() + mainClause.slice(1)
+    return `To ${purposeClause}, ${lowerMain}.`
+  }
+
+  const byMatch = s.match(/^([^,;]+?)\s+by\s+([a-z]+ing\s+[^.!?]+)[.!?]$/i)
+  if (byMatch && byMatch[1].split(/\s+/).length >= 4 && byMatch[2].split(/\s+/).length >= 3) {
+    const main = byMatch[1].trim()
+    const byClause = byMatch[2].trim()
+    const lowerMain = main.charAt(0).toLowerCase() + main.slice(1)
+    return `By ${byClause}, ${lowerMain}.`
+  }
+
+  return sentence
+}
+
 /**
  * High-Burstiness & High-Perplexity Client-Side Humanizer Engine
  */
@@ -256,7 +350,10 @@ export function clientHumanize(
     workingText = workingText.replace(regex, replacement)
   }
 
-  // 3. Active Voice & Nominalization Unpacking (High Perplexity)
+  // 3. Apply Dynamic Synonym Variation with Sliding History Window
+  workingText = applyDynamicSynonyms(workingText)
+
+  // 4. Active Voice & Nominalization Unpacking (High Perplexity)
   const nominalizations: Array<[RegExp, string]> = [
     [/\bmake an assumption\b/gi, 'assume'],
     [/\bcome to the conclusion\b/gi, 'conclude'],
@@ -273,18 +370,18 @@ export function clientHumanize(
     workingText = workingText.replace(nom, active)
   }
 
-  // 4. Modulate Burstiness (Rhythm Cadence & Varied Sentence Lengths)
+  // 5. Modulate Burstiness (Clause Reordering, Splitting & Merging)
   const rawSentences = workingText.split(/(?<=[.!?])\s+/)
   const cadenceSentences: string[] = []
 
   for (let i = 0; i < rawSentences.length; i++) {
-    let s = rawSentences[i].trim()
+    let s = reorderClauses(rawSentences[i])
     if (!s) continue
 
     const wordCount = s.split(/\s+/).length
 
-    // If a sentence is overly long (> 24 words) and contains semicolons or subordinate clauses, break it up
-    if (wordCount > 24 && !s.includes('__SENSITIVE_TOKEN_')) {
+    // If a sentence is overly long (> 20 words) and contains semicolons or subordinate clauses, break it up
+    if (wordCount > 20 && !s.includes('__SENSITIVE_TOKEN_')) {
       if (s.includes(';')) {
         const parts = s.split(/;\s*/)
         if (parts.length === 2 && parts[0].length > 15 && parts[1].length > 15) {
@@ -325,18 +422,44 @@ export function clientHumanize(
     cadenceSentences.push(s)
   }
 
+  // Merge adjacent short sentences (< 10 words) if neither contains shielded tokens
+  const mergedSentences: string[] = []
+  for (let i = 0; i < cadenceSentences.length; i++) {
+    const cur = cadenceSentences[i]
+    const next = cadenceSentences[i + 1]
+
+    if (
+      next &&
+      cur.split(/\s+/).length <= 9 &&
+      next.split(/\s+/).length <= 9 &&
+      !cur.includes('__SENSITIVE_TOKEN_') &&
+      !next.includes('__SENSITIVE_TOKEN_') &&
+      cur.endsWith('.') &&
+      next.endsWith('.')
+    ) {
+      const first = cur.slice(0, -1)
+      const second = next.charAt(0).toLowerCase() + next.slice(1)
+      const connectors = ['; concurrently, ', '; at the same time, ', ', thereby enabling ']
+      const connector = connectors[Math.floor(Math.random() * connectors.length)]
+      mergedSentences.push(`${first}${connector}${second}`)
+      i++ // skip next
+    } else {
+      mergedSentences.push(cur)
+    }
+  }
+
   // Check opener monotony (avoid consecutive sentences starting with "The")
-  for (let j = 1; j < cadenceSentences.length; j++) {
-    if (/^The\s+/i.test(cadenceSentences[j]) && /^The\s+/i.test(cadenceSentences[j - 1])) {
+  for (let j = 1; j < mergedSentences.length; j++) {
+    if (/^The\s+/i.test(mergedSentences[j]) && /^The\s+/i.test(mergedSentences[j - 1])) {
       if (mode === 'academic') {
-        cadenceSentences[j] = 'Specifically, t' + cadenceSentences[j].slice(1)
+        mergedSentences[j] = 'Specifically, t' + mergedSentences[j].slice(1)
       } else {
-        cadenceSentences[j] = 'In practice, t' + cadenceSentences[j].slice(1)
+        mergedSentences[j] = 'In practice, t' + mergedSentences[j].slice(1)
       }
     }
   }
 
-  let transformedText = cadenceSentences.join(' ')
+  let transformedText = mergedSentences.join(' ')
 
   // 5. Restore Sensitive Tokens
   restoreMap.forEach((val, key) => {

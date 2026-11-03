@@ -124,20 +124,21 @@ export const OutputSection: React.FC<OutputSectionProps> = ({
             </span>
           </label>
 
-          {engine && (
-            <span className={`text-[11px] font-mono px-2.5 py-0.5 rounded border flex items-center gap-1.5 ${
-              engine === 'gemini' && !isFallback
-                ? 'bg-gold-500/10 text-gold-300 border-gold-500/20' 
-                : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${engine === 'gemini' && !isFallback ? 'bg-gold-400' : 'bg-amber-400'}`} />
-              <span>
-                {engine === 'gemini' && !isFallback 
-                  ? `Gemini Cloud (${model || 'Active'})` 
-                  : `Offline Linguistic Engine (Fallback: ${model || 'Local'})`}
-              </span>
+          {isFallback ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/10">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span>⚡ Local Fallback Engine (Offline Mode)</span>
             </span>
-          )}
+          ) : engine === 'gemini' ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10">
+              <span className="w-2 h-2 rounded-full bg-teal-400" />
+              <span>✨ Gemini AI Engine ({model || 'Cloud'})</span>
+            </span>
+          ) : engine ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-slate-800 text-slate-300 border-slate-700">
+              <span>{engine}</span>
+            </span>
+          ) : null}
 
           {factualIntegrity && (
             <span className={`text-[11px] px-2 py-0.5 rounded font-semibold flex items-center gap-1 border ${

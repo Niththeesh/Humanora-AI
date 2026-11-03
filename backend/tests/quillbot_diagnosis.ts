@@ -64,6 +64,10 @@ async function runQuillBotDiagnosis() {
   console.log(`  - Sentence lengths: [${realSentences.map(s => s.split(/\s+/).length).join(', ')}] words`)
   console.log(`  - Structural transformation: Formulaic transitions completely eradicated; concepts integrated via natural subordinate and participial structures.`)
   console.log('================================================================================\n')
+  process.exit(0)
 }
 
-runQuillBotDiagnosis().catch(console.error)
+runQuillBotDiagnosis().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})

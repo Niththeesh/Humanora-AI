@@ -438,6 +438,7 @@ async function runSessionCacheTestSuite() {
   if (failed > 0) {
     process.exit(1)
   }
+  process.exit(0)
 }
 
 runSessionCacheTestSuite().catch((err) => {

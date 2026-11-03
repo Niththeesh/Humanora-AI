@@ -232,6 +232,61 @@ async function runTests() {
       assert.strictEqual(res.body.successful, 1)
     })
 
+    // 12. AI Detector: empty and whitespace input validation
+    await test('POST /api/detect rejects empty or whitespace text with 400', async () => {
+      const emptyRes = await request(server, 'POST', '/api/detect', { text: '' })
+      assert.strictEqual(emptyRes.status, 400)
+      assert.strictEqual(emptyRes.body.success, false)
+
+      const spaceRes = await request(server, 'POST', '/api/detect', { text: '    ' })
+      assert.strictEqual(spaceRes.status, 400)
+      assert.strictEqual(spaceRes.body.success, false)
+    })
+
+    // 13. AI Detector: oversized payload validation
+    await test('POST /api/detect rejects oversized text exceeding 50,000 characters with 400', async () => {
+      const oversizedText = 'A'.repeat(50001)
+      const res = await request(server, 'POST', '/api/detect', { text: oversizedText })
+      assert.strictEqual(res.status, 400)
+      assert.strictEqual(res.body.success, false)
+      assert.ok(res.body.message.includes('50,000'))
+    })
+
+    // 14. AI Detector: honest heuristic signals and scoring
+    await test('POST /api/detect computes real signals and transparent disclaimers', async () => {
+      const sampleText = 'Moreover, it is important to note that artificial intelligence plays a crucial role in modern society. Furthermore, we must delve into this tapestry to unpack its multifaceted implications.'
+      const res = await request(server, 'POST', '/api/detect', { text: sampleText })
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(res.body.success, true)
+      assert.strictEqual(typeof res.body.aiScore, 'number')
+      assert.strictEqual(typeof res.body.humanScore, 'number')
+      assert.strictEqual(res.body.aiScore + res.body.humanScore, 100)
+      assert.ok(['Low', 'Medium', 'High'].includes(res.body.verdict))
+      assert.ok(res.body.signals)
+      assert.strictEqual(typeof res.body.signals.burstiness.score, 'number')
+      assert.strictEqual(typeof res.body.signals.lexicalDiversity.typeTokenRatio, 'number')
+      assert.strictEqual(typeof res.body.signals.clicheDensity.count, 'number')
+      assert.strictEqual(typeof res.body.signals.repetitiveNgrams.rate, 'number')
+      assert.strictEqual(typeof res.body.signals.transitionUniformity.formulaicOpenerCount, 'number')
+      assert.ok(Array.isArray(res.body.sentenceAnalysis))
+      assert.ok(res.body.sentenceAnalysis.length >= 2)
+      // Clichés detected in sampleText
+      assert.ok(res.body.signals.clicheDensity.foundCliches.length > 0)
+      // Must contain honest non-guarantee disclaimer
+      assert.ok(res.body.disclaimer.includes('Estimate based on writing patterns'))
+      assert.ok(res.body.disclaimer.includes('not a guarantee'))
+    })
+
+    // 15. AI Detector: router alias POST /api/ai/detect
+    await test('POST /api/ai/detect functions identically via router mount', async () => {
+      const res = await request(server, 'POST', '/api/ai/detect', {
+        text: 'The 2024 survey showed that 45% of students used digital notes. Short sentence here. But when we look closer at the archives, different trends emerge across secondary schools.'
+      })
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(res.body.success, true)
+      assert.ok(res.body.aiScore < 70) // Varied lengths and factual numbers
+    })
+
   } finally {
     server.close()
   }

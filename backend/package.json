@@ -16,6 +16,8 @@
     "test:quality": "ts-node tests/writing_quality_evaluation.test.ts",
     "test:diagnosis": "ts-node tests/quillbot_diagnosis.ts",
     "test:live": "ts-node tests/final_verification.ts",
+    "test:screenshot": "ts-node tests/take_screenshot.ts",
+    "test:samples3": "ts-node tests/verify_3_samples.ts",
     "test:all": "ts-node tests/api.test.ts && ts-node tests/session_cache.test.ts && ts-node tests/security_isolation.test.ts && ts-node tests/quality_assurance.test.ts && ts-node tests/writing_quality_10_samples.test.ts && node tests/browser_automation.test.js"
   },
 

@@ -332,6 +332,7 @@ async function runSecurityIsolationTests() {
     if (failed > 0) {
       process.exit(1)
     }
+    process.exit(0)
   } catch (err) {
     server.close()
     console.error('Test error:', err)

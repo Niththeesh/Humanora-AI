@@ -417,6 +417,7 @@ export const detectAILikelihood = async (req: Request, res: Response) => {
     const { text } = req.body
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid input',
         message: 'Please provide text to analyze'
       })
@@ -424,15 +425,20 @@ export const detectAILikelihood = async (req: Request, res: Response) => {
 
     if (text.length > 50000) {
       return res.status(400).json({
+        success: false,
         error: 'Text too long',
         message: 'Maximum 50,000 characters allowed per detection'
       })
     }
 
     const detection = aiDetectorService.detect(text)
-    return res.json(detection)
+    return res.json({
+      success: true,
+      ...detection
+    })
   } catch (err: any) {
     return res.status(500).json({
+      success: false,
       error: 'Detection failed',
       message: err.message || 'An error occurred during AI likelihood analysis'
     })

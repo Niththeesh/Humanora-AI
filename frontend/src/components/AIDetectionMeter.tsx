@@ -62,28 +62,28 @@ export const AIDetectionMeter: React.FC<AIDetectionMeterProps> = ({ metrics }) =
         <div className="p-2 rounded-lg bg-charcoal-900/80 border border-teal-500/20 flex flex-col">
           <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Cadence Variance</span>
           <span className="text-xs font-mono font-extrabold text-teal-300 flex items-center gap-1 mt-0.5">
-            <span>✓</span> {metrics.bypassedDetectors?.turnitin || 'Varied Cadence'}
+            <span>✓</span> {metrics.sentenceVariance > 5 ? 'High Cadence' : 'Balanced'}
           </span>
         </div>
 
         <div className="p-2 rounded-lg bg-charcoal-900/80 border border-teal-500/20 flex flex-col">
           <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Clause Dynamics</span>
           <span className="text-xs font-mono font-extrabold text-teal-300 flex items-center gap-1 mt-0.5">
-            <span>✓</span> {metrics.bypassedDetectors?.gptZero || 'Dynamic Flow'}
+            <span>✓</span> {metrics.shortSentenceRatio > 0.15 ? 'Dynamic Flow' : 'Standard Flow'}
           </span>
         </div>
 
         <div className="p-2 rounded-lg bg-charcoal-900/80 border border-teal-500/20 flex flex-col">
           <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Lexical Variety</span>
           <span className="text-xs font-mono font-extrabold text-teal-300 flex items-center gap-1 mt-0.5">
-            <span>✓</span> {metrics.bypassedDetectors?.originality || 'High Perplexity'}
+            <span>✓</span> {metrics.perplexityScore > 65 ? 'High Diversity' : 'Natural Diversity'}
           </span>
         </div>
 
         <div className="p-2 rounded-lg bg-charcoal-900/80 border border-teal-500/20 flex flex-col">
           <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Syntactic Structure</span>
           <span className="text-xs font-mono font-extrabold text-teal-300 flex items-center gap-1 mt-0.5">
-            <span>✓</span> {metrics.bypassedDetectors?.copyleaks || 'Diverse Syntax'}
+            <span>✓</span> {metrics.burstinessScore > 50 ? 'Diverse Syntax' : 'Standard'}
           </span>
         </div>
       </div>

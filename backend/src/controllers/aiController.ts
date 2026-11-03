@@ -4,16 +4,26 @@ import { databaseService } from '../services/databaseService'
 import { academicAuditService } from '../services/academicAuditService'
 import { sessionSecurityService } from '../services/sessionSecurityService'
 import { sessionCacheService } from '../services/sessionCacheService'
+import { aiDetectorService } from '../services/aiDetectorService'
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
 const MAX_REQUESTS_PER_WINDOW = 30
+const RATE_LIMIT_MAP_MAX_SIZE = 1000
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now()
   const record = rateLimitMap.get(ip)
 
   if (!record || now > record.resetTime) {
+    // Prevent unbounded memory growth by sweeping expired records when map is large
+    if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX_SIZE) {
+      for (const [key, val] of rateLimitMap.entries()) {
+        if (now > val.resetTime) {
+          rateLimitMap.delete(key)
+        }
+      }
+    }
     rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS })
     return true
   }
@@ -401,4 +411,32 @@ export const deleteHistoryItem = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Failed to delete item', message: err.message })
   }
 }
+
+export const detectAILikelihood = async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'Please provide text to analyze'
+      })
+    }
+
+    if (text.length > 50000) {
+      return res.status(400).json({
+        error: 'Text too long',
+        message: 'Maximum 50,000 characters allowed per detection'
+      })
+    }
+
+    const detection = aiDetectorService.detect(text)
+    return res.json(detection)
+  } catch (err: any) {
+    return res.status(500).json({
+      error: 'Detection failed',
+      message: err.message || 'An error occurred during AI likelihood analysis'
+    })
+  }
+}
+
 

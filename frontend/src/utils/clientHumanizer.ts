@@ -7,23 +7,65 @@
  * across Turnitin, GPTZero, and Originality.ai.
  */
 
+export interface SentenceDetail {
+  sentence: string
+  score: number
+  verdict: 'Low' | 'Medium' | 'High'
+  reasons: string[]
+}
+
+export interface AIDetectResult {
+  aiScore: number // 0 - 100
+  humanScore: number // 100 - aiScore
+  verdict: 'Low' | 'Medium' | 'High'
+  summary: string
+  disclaimer: string
+  wordCount: number
+  sentenceCount: number
+  signals: {
+    burstiness: {
+      score: number
+      standardDeviation: number
+      averageSentenceLength: number
+      label: string
+    }
+    lexicalDiversity: {
+      score: number
+      typeTokenRatio: number
+      uniqueWords: number
+      totalWords: number
+      label: string
+    }
+    clicheDensity: {
+      count: number
+      densityPer100Words: number
+      foundCliches: string[]
+      label: string
+    }
+    repetitiveNgrams: {
+      rate: number
+      foundPatterns: string[]
+    }
+    transitionUniformity: {
+      formulaicOpenerCount: number
+      percentage: number
+      label: string
+    }
+  }
+  sentenceAnalysis: SentenceDetail[]
+}
+
 export interface AIDetectionMetrics {
   aiScore: number
   humanScore: number
-  burstinessScore: number // 0 - 100 (high = human)
-  perplexityScore: number // 0 - 100 (high = human)
-  sentenceVariance: number // Std deviation of sentence lengths
-  shortSentenceRatio: number // % of sentences <= 8 words
-  longSentenceRatio: number // % of sentences >= 22 words
-  clicheCount: number // Number of detected AI clichés
-  status: 'verified_human' | 'analyzing' | 'analyzed'
+  burstinessScore: number
+  perplexityScore: number
+  sentenceVariance: number
+  shortSentenceRatio: number
+  longSentenceRatio: number
+  clicheCount: number
+  status: 'analyzed' | 'analyzing'
   disclaimer: string
-  bypassedDetectors: {
-    turnitin: string
-    gptZero: string
-    originality: string
-    copyleaks: string
-  }
 }
 
 export interface ClientHumanizeResult {
@@ -132,6 +174,231 @@ export const BANNED_AI_CLICHES: Array<[RegExp, string]> = [
  * Calculates writing burstiness, lexical variety, and heuristic cadence signals.
  * AI detector estimates are heuristic statistical approximations, not ground truth.
  */
+/**
+ * Honest AI-Likelihood Detector (Client-side offline equivalent of POST /api/detect)
+ * Uses real heuristics: sentence-length variance (burstiness), type-token ratio,
+ * cliché phrase density, repeated n-grams, and formulaic transition openers.
+ */
+export function detectAILikelihoodOffline(text: string): AIDetectResult {
+  const clean = text ? text.trim() : ''
+  if (!clean) {
+    throw new Error('Please provide text to analyze.')
+  }
+
+  const sentences = clean
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+
+  const rawWords = clean
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1)
+
+  const wordCount = Math.max(1, rawWords.length)
+  const sentenceCount = Math.max(1, sentences.length)
+
+  // 1. Burstiness: Sentence length variance
+  const sentenceLengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length)
+  const avgLen = sentenceLengths.reduce((acc, l) => acc + l, 0) / sentenceCount
+  const variance = sentenceLengths.reduce((acc, l) => acc + Math.pow(l - avgLen, 2), 0) / sentenceCount
+  const stdDev = Math.sqrt(variance)
+
+  let burstinessScore = 50
+  let burstinessPenalty = 50
+  if (stdDev >= 8.0) {
+    burstinessScore = 90
+    burstinessPenalty = 10
+  } else if (stdDev >= 5.5) {
+    burstinessScore = 70
+    burstinessPenalty = 30
+  } else if (stdDev >= 3.5) {
+    burstinessScore = 45
+    burstinessPenalty = 60
+  } else {
+    burstinessScore = 20
+    burstinessPenalty = 85
+  }
+
+  // 2. Lexical Diversity
+  const uniqueWordSet = new Set(rawWords)
+  const ttr = uniqueWordSet.size / wordCount
+  let lexicalScore = 50
+  let lexicalPenalty = 50
+  if (ttr >= 0.75) {
+    lexicalScore = 90
+    lexicalPenalty = 10
+  } else if (ttr >= 0.55) {
+    lexicalScore = 70
+    lexicalPenalty = 30
+  } else if (ttr >= 0.40) {
+    lexicalScore = 45
+    lexicalPenalty = 60
+  } else {
+    lexicalScore = 25
+    lexicalPenalty = 80
+  }
+
+  // 3. AI Cliché Density
+  let totalClicheHits = 0
+  const foundCliches: string[] = []
+  for (const [regex] of BANNED_AI_CLICHES) {
+    const matches = clean.match(regex)
+    if (matches && matches.length > 0) {
+      totalClicheHits += matches.length
+      const sample = matches[0].trim().toLowerCase()
+      if (!foundCliches.includes(sample) && foundCliches.length < 8) {
+        foundCliches.push(sample)
+      }
+    }
+  }
+  const clicheDensityPer100 = (totalClicheHits / wordCount) * 100
+  const clichePenalty = Math.min(100, Math.round(clicheDensityPer100 * 40))
+
+  // 4. Repeated N-grams
+  const trigrams: string[] = []
+  for (let i = 0; i < rawWords.length - 2; i++) {
+    trigrams.push(`${rawWords[i]} ${rawWords[i + 1]} ${rawWords[i + 2]}`)
+  }
+  const trigramFreq = new Map<string, number>()
+  for (const tri of trigrams) {
+    trigramFreq.set(tri, (trigramFreq.get(tri) || 0) + 1)
+  }
+  const repeatedTrigrams: string[] = []
+  let repeatedCount = 0
+  for (const [tri, freq] of trigramFreq.entries()) {
+    if (freq > 1) {
+      repeatedCount += freq - 1
+      if (repeatedTrigrams.length < 5) repeatedTrigrams.push(tri)
+    }
+  }
+  const trigramRepetitionRate = trigrams.length > 0 ? repeatedCount / trigrams.length : 0
+  const ngramPenalty = Math.min(100, Math.round(trigramRepetitionRate * 300))
+
+  // 5. Formulaic Transition Openers
+  const formulaicRegexes = [
+    /^furthermore\b/i,
+    /^moreover\b/i,
+    /^in conclusion\b/i,
+    /^additionally\b/i,
+    /^consequently\b/i,
+    /^it is important to note\b/i,
+    /^it is worth noting\b/i,
+    /^first and foremost\b/i,
+    /^overall\b/i,
+    /^in summary\b/i
+  ]
+  let formulaicOpenerCount = 0
+  for (const s of sentences) {
+    if (formulaicRegexes.some(r => r.test(s))) formulaicOpenerCount++
+  }
+  const formulaicOpenerRate = (formulaicOpenerCount / sentenceCount) * 100
+  const transitionPenalty = Math.min(100, Math.round(formulaicOpenerRate * 1.5))
+
+  // 6. Sentence-Level Breakdown
+  const sentenceAnalysis: SentenceDetail[] = sentences.map(sent => {
+    const wordsInSent = sent.split(/\s+/).filter(Boolean).length
+    const reasons: string[] = []
+    let sentScore = 20
+
+    if (formulaicRegexes.some(r => r.test(sent))) {
+      reasons.push('Begins with formulaic transition adverb')
+      sentScore += 35
+    }
+
+    for (const [regex] of BANNED_AI_CLICHES) {
+      if (regex.test(sent)) {
+        reasons.push('Contains recognizable AI cliché pattern')
+        sentScore += 30
+        break
+      }
+    }
+
+    if (stdDev < 3.5 && Math.abs(wordsInSent - avgLen) < 3 && wordsInSent >= 12 && wordsInSent <= 22) {
+      if (!sent.includes(';') && !sent.includes(',') && !sent.includes('—')) {
+        reasons.push(`Predictable length (${wordsInSent} words) with rigid cadence`)
+        sentScore += 20
+      }
+    }
+
+    sentScore = Math.max(5, Math.min(95, sentScore))
+    const sentVerdict: 'Low' | 'Medium' | 'High' =
+      sentScore <= 35 ? 'Low' : sentScore <= 68 ? 'Medium' : 'High'
+
+    return {
+      sentence: sent,
+      score: sentScore,
+      verdict: sentVerdict,
+      reasons
+    }
+  })
+
+  // Combined Weighted AI Score
+  const rawAiScore =
+    0.30 * burstinessPenalty +
+    0.35 * clichePenalty +
+    0.20 * transitionPenalty +
+    0.15 * (0.6 * lexicalPenalty + 0.4 * ngramPenalty)
+
+  const finalAiScore = Math.max(6, Math.min(96, Math.round(rawAiScore)))
+  const humanScore = 100 - finalAiScore
+
+  const verdict: 'Low' | 'Medium' | 'High' =
+    finalAiScore <= 34 ? 'Low' : finalAiScore <= 68 ? 'Medium' : 'High'
+
+  const summary =
+    verdict === 'Low'
+      ? 'Natural Human Cadence: High sentence length variance, expressive vocabulary, and absence of formulaic AI transition patterns.'
+      : verdict === 'Medium'
+      ? 'Mixed Writing Patterns: Moderate cadence variation observed with occasional predictable transitions or uniform sentence structures.'
+      : 'Predictable AI Signature Patterns: Uniform sentence lengths, formulaic transitions, or repeated AI cliché phrases detected.'
+
+  return {
+    aiScore: finalAiScore,
+    humanScore,
+    verdict,
+    summary,
+    disclaimer: 'Estimate based on writing patterns. Not equivalent to Turnitin/GPTZero and not a guarantee.',
+    wordCount,
+    sentenceCount,
+    signals: {
+      burstiness: {
+        score: burstinessScore,
+        standardDeviation: Math.round(stdDev * 10) / 10,
+        averageSentenceLength: Math.round(avgLen * 10) / 10,
+        label: stdDev >= 6.5 ? 'High Natural Variety' : stdDev >= 4.0 ? 'Moderate Variety' : 'Low / Monotonous AI Rhythm'
+      },
+      lexicalDiversity: {
+        score: lexicalScore,
+        typeTokenRatio: Math.round(ttr * 100) / 100,
+        uniqueWords: uniqueWordSet.size,
+        totalWords: wordCount,
+        label: ttr >= 0.65 ? 'Rich Vocabulary' : ttr >= 0.45 ? 'Standard Vocabulary' : 'Repetitive Word Choice'
+      },
+      clicheDensity: {
+        count: totalClicheHits,
+        densityPer100Words: Math.round(clicheDensityPer100 * 10) / 10,
+        foundCliches,
+        label: totalClicheHits === 0 ? 'Zero AI Clichés' : `${totalClicheHits} AI Hallmarks Detected`
+      },
+      repetitiveNgrams: {
+        rate: Math.round(trigramRepetitionRate * 1000) / 10,
+        foundPatterns: repeatedTrigrams
+      },
+      transitionUniformity: {
+        formulaicOpenerCount,
+        percentage: Math.round(formulaicOpenerRate),
+        label: formulaicOpenerCount === 0 ? 'Organic Transitions' : `${formulaicOpenerCount} Formulaic Openers`
+      }
+    },
+    sentenceAnalysis
+  }
+}
+
+/**
+ * Backward compatibility helper for legacy UI components
+ */
 export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
   const clean = text.trim()
   if (!clean) {
@@ -145,71 +412,27 @@ export function calculateAIDetectionMetrics(text: string): AIDetectionMetrics {
       longSentenceRatio: 0,
       clicheCount: 0,
       status: 'analyzing',
-      disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
-      bypassedDetectors: {
-        turnitin: 'Varied Cadence',
-        gptZero: 'Dynamic Flow',
-        originality: 'High Perplexity',
-        copyleaks: 'Diverse Syntax'
-      }
+      disclaimer: 'Estimate based on writing patterns. Not equivalent to Turnitin/GPTZero and not a guarantee.'
     }
   }
 
-  const words = clean.split(/\s+/).filter(w => w.length > 0)
+  const detection = detectAILikelihoodOffline(text)
   const sentences = clean.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0)
-
-  // 1. Sentence length variance (Burstiness)
   const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).filter(w => w.length > 0).length)
-  const avgLen = sentenceLengths.length > 0 ? sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length : 12
-  const variance = sentenceLengths.length > 1
-    ? Math.sqrt(sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgLen, 2), 0) / (sentenceLengths.length - 1))
-    : 0
-
   const shortSentences = sentenceLengths.filter(l => l <= 8).length
   const longSentences = sentenceLengths.filter(l => l >= 22).length
-  const shortRatio = sentences.length > 0 ? (shortSentences / sentences.length) * 100 : 0
-  const longRatio = sentences.length > 0 ? (longSentences / sentences.length) * 100 : 0
-
-  // Standard human text exhibits sentence length variance
-  const rawBurstiness = Math.min(100, Math.round(50 + (variance * 4.5) + (shortRatio > 10 ? 8 : 0) + (longRatio > 10 ? 8 : 0)))
-  const burstinessScore = Math.max(70, Math.min(100, rawBurstiness))
-
-  // 2. Vocabulary variety (Perplexity & Lexical Diversity)
-  const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z0-9]/g, ''))).size
-  const typeTokenRatio = words.length > 0 ? (uniqueWords / words.length) : 0.8
-  
-  // Count forbidden clichés
-  let clicheCount = 0
-  for (const [regex] of BANNED_AI_CLICHES) {
-    const matches = clean.match(regex)
-    if (matches) clicheCount += matches.length
-  }
-
-  const rawPerplexity = Math.min(100, Math.round((typeTokenRatio * 90) + 15 - (clicheCount * 5)))
-  const perplexityScore = Math.max(75, Math.min(100, rawPerplexity))
-
-  // Heuristic indicator based on cadence and clichés
-  const monotonyPenalty = variance < 3 ? 15 : variance < 5 ? 8 : 2
-  const aiScore = Math.min(25, monotonyPenalty + (clicheCount * 3))
-  const humanScore = 100 - aiScore
 
   return {
-    aiScore,
-    humanScore,
-    burstinessScore,
-    perplexityScore,
-    sentenceVariance: Math.round(variance * 10) / 10,
-    shortSentenceRatio: Math.round(shortRatio),
-    longSentenceRatio: Math.round(longRatio),
-    clicheCount,
+    aiScore: detection.aiScore,
+    humanScore: detection.humanScore,
+    burstinessScore: detection.signals.burstiness.score,
+    perplexityScore: detection.signals.lexicalDiversity.score,
+    sentenceVariance: detection.signals.burstiness.standardDeviation,
+    shortSentenceRatio: sentences.length > 0 ? Math.round((shortSentences / sentences.length) * 100) : 0,
+    longSentenceRatio: sentences.length > 0 ? Math.round((longSentences / sentences.length) * 100) : 0,
+    clicheCount: detection.signals.clicheDensity.count,
     status: 'analyzed',
-    disclaimer: 'AI detector estimates are heuristic statistical approximations, not definitive ground truth.',
-    bypassedDetectors: {
-      turnitin: 'Varied Cadence',
-      gptZero: 'Dynamic Flow',
-      originality: 'High Perplexity',
-      copyleaks: 'Diverse Syntax'
-    }
+    disclaimer: 'Estimate based on writing patterns. Not equivalent to Turnitin/GPTZero and not a guarantee.'
   }
 }
 

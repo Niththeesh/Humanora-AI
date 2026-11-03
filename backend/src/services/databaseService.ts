@@ -130,6 +130,15 @@ class DatabaseService {
     }
   }
 
+  private saveToMemoryHistory(id: string, record: TransformationRecord): void {
+    this.memoryHistory.set(id, record)
+    const MAX_MEMORY_HISTORY = 200
+    if (this.memoryHistory.size > MAX_MEMORY_HISTORY) {
+      const oldestKey = this.memoryHistory.keys().next().value
+      if (oldestKey) this.memoryHistory.delete(oldestKey)
+    }
+  }
+
   /**
    * Saves a transformation record.
    * If ephemeral privacy mode is enabled, skips database persistence completely.
@@ -216,7 +225,7 @@ class DatabaseService {
           this.tableVerified = false
           this.schemaError = error.message
           fullRecord.persistenceNote = `Saved to session memory (Supabase table notice: ${error.message}).`
-          this.memoryHistory.set(id, fullRecord)
+          this.saveToMemoryHistory(id, fullRecord)
         } else if (data) {
           this.tableVerified = true
           this.schemaError = null
@@ -244,14 +253,10 @@ class DatabaseService {
       } catch (err: any) {
         console.warn('[DatabaseService] Error during Supabase insert:', err.message)
         fullRecord.persistenceNote = `Saved to session memory (Connection error: ${err.message})`
-        this.memoryHistory.set(id, fullRecord)
+        this.saveToMemoryHistory(id, fullRecord)
       }
     } else {
-      this.memoryHistory.set(id, fullRecord)
-      if (this.memoryHistory.size > 50) {
-        const oldestKey = this.memoryHistory.keys().next().value
-        if (oldestKey) this.memoryHistory.delete(oldestKey)
-      }
+      this.saveToMemoryHistory(id, fullRecord)
     }
 
     return fullRecord

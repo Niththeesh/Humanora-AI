@@ -5,6 +5,7 @@ import { Header } from './components/Header'
 import { TextInputArea } from './components/TextInputArea'
 import { ControlPanel } from './components/ControlPanel'
 import { OutputSection } from './components/OutputSection'
+import { AIDetectorPanel } from './components/AIDetectorPanel'
 import { Disclaimer } from './components/Disclaimer'
 import { BatchProcessor } from './components/BatchProcessor'
 import { LandingSections } from './components/LandingSections'
@@ -13,7 +14,7 @@ import { AcademicReportModal, AcademicReportData } from './components/AcademicRe
 import { StudentVoiceModal, StudentVoiceProfile } from './components/StudentVoiceModal'
 import { AuthModal } from './components/AuthModal'
 import { getOrCreateSessionId, getCurrentUser, setCurrentUser, getAuthHeaders, setSessionToken, UserProfile } from './utils/session'
-import { clientHumanize, calculateAIDetectionMetrics, AIDetectionMetrics } from './utils/clientHumanizer'
+import { clientHumanize, calculateAIDetectionMetrics, AIDetectionMetrics, AIDetectResult, detectAILikelihoodOffline } from './utils/clientHumanizer'
 import './App.css'
 
 function App() {
@@ -37,6 +38,9 @@ function App() {
   const [factualIntegrity, setFactualIntegrity] = useState<any>(undefined)
   const [aiMetrics, setAiMetrics] = useState<AIDetectionMetrics | null>(null)
   const [isFallback, setIsFallback] = useState<boolean>(false)
+  const [inputDetection, setInputDetection] = useState<AIDetectResult | null>(null)
+  const [outputDetection, setOutputDetection] = useState<AIDetectResult | null>(null)
+  const [isDetecting, setIsDetecting] = useState<boolean>(false)
 
   // Control Panel States
   const [mode, setMode] = useState('academic')
@@ -100,6 +104,43 @@ function App() {
     loadSystemConfig()
   }, [sessionId, currentUser])
 
+  // AI Likelihood Detector Trigger (API first, client fallback)
+  const runDetection = useCallback(async (text: string): Promise<AIDetectResult> => {
+    if (!text || !text.trim()) {
+      return detectAILikelihoodOffline('')
+    }
+    try {
+      const res = await axios.post('/api/detect', { text }, { timeout: 8000 })
+      return res.data
+    } catch {
+      try {
+        const resAi = await axios.post('/api/ai/detect', { text }, { timeout: 8000 })
+        return resAi.data
+      } catch {
+        return detectAILikelihoodOffline(text)
+      }
+    }
+  }, [])
+
+  const handleScanInput = useCallback(async () => {
+    if (!inputText.trim()) {
+      showToast('Please enter text to scan for AI writing patterns.')
+      return
+    }
+    setIsDetecting(true)
+    try {
+      const result = await runDetection(inputText)
+      setInputDetection(result)
+      showToast(`AI Likelihood Scan complete: ${result.verdict} (${result.aiScore}%)`)
+    } catch (err) {
+      console.error('Detection scan error:', err)
+      const offline = detectAILikelihoodOffline(inputText)
+      setInputDetection(offline)
+    } finally {
+      setIsDetecting(false)
+    }
+  }, [inputText, runDetection])
+
   // Primary Academic Transformation Execution
   const handleHumanize = useCallback(async () => {
     // Duplicate submission guard
@@ -159,6 +200,15 @@ function App() {
       if (response.data.warning) {
         setWarning(response.data.warning)
       }
+
+      // Automatically scan input & output for AI likelihood comparison
+      Promise.all([
+        runDetection(inputText),
+        runDetection(response.data.humanizedText)
+      ]).then(([inScan, outScan]) => {
+        setInputDetection(inScan)
+        setOutputDetection(outScan)
+      }).catch(e => console.warn('Detection auto-scan error:', e))
       
       if (!isEphemeral) {
         setHistoryCount(prev => prev + 1)
@@ -190,6 +240,15 @@ function App() {
         setChangesExplanation(legacyRes.data.changesExplanation)
         setFactualIntegrity(legacyRes.data.factualIntegrity)
         setAiMetrics(calculateAIDetectionMetrics(legacyRes.data.humanizedText))
+
+        Promise.all([
+          runDetection(inputText),
+          runDetection(legacyRes.data.humanizedText)
+        ]).then(([inScan, outScan]) => {
+          setInputDetection(inScan)
+          setOutputDetection(outScan)
+        }).catch(e => console.warn('Detection legacy scan error:', e))
+
         setHistoryCount(prev => prev + 1)
         showToast('Text enhanced via backup linguistic engine (Notice: fallback mode).')
       } catch (innerErr: any) {
@@ -204,6 +263,8 @@ function App() {
           setChangesExplanation(clientRes.changesExplanation)
           setFactualIntegrity(clientRes.factualIntegrity)
           setAiMetrics(clientRes.aiMetrics)
+          setInputDetection(detectAILikelihoodOffline(inputText))
+          setOutputDetection(detectAILikelihoodOffline(clientRes.humanizedText))
           setHistoryCount(prev => prev + 1)
           showToast('Offline Mode: Text refined using browser linguistic rules (cloud LLM unavailable).')
         } catch (clientErr: any) {
@@ -214,7 +275,7 @@ function App() {
     } finally {
       setIsLoading(false)
     }
-  }, [inputText, mode, tone, intensity, targetLength, authorVoice, vocabulary, highlights, studentVoiceSample, isEphemeral, sessionId, currentUser, isLoading])
+  }, [inputText, mode, tone, intensity, targetLength, authorVoice, vocabulary, highlights, studentVoiceSample, isEphemeral, sessionId, currentUser, isLoading, runDetection])
 
   // Direct Academic Draft Audit (Without rewrites)
   const handleAuditDraft = useCallback(async () => {
@@ -254,6 +315,8 @@ function App() {
     setFactualIntegrity(undefined)
     setAcademicReport(null)
     setAiMetrics(null)
+    setInputDetection(null)
+    setOutputDetection(null)
     showToast('Input and output cleared.')
   }, [])
 
@@ -464,6 +527,14 @@ function App() {
                   onOpenAcademicReport={() => setIsAcademicReportOpen(true)}
                   aiMetrics={aiMetrics || undefined}
                   isFallback={isFallback}
+                />
+
+                <AIDetectorPanel
+                  inputDetection={inputDetection}
+                  outputDetection={outputDetection}
+                  isScanning={isDetecting}
+                  onScanInput={handleScanInput}
+                  hasOutput={Boolean(outputText)}
                 />
 
                 <Disclaimer isDark={isDark} />

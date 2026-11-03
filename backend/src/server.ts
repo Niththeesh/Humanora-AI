@@ -11,6 +11,7 @@ import humanizeRoutes from './routes/humanize'
 import batchRoutes from './routes/batch'
 import aiRoutes from './routes/ai'
 import historyRoutes from './routes/history'
+import { detectAILikelihood } from './controllers/aiController'
 import { errorHandler } from './middleware/errorHandler'
 import { geminiService } from './services/geminiService'
 import { databaseService } from './services/databaseService'
@@ -69,6 +70,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 })
 
 // Routes
+app.post('/api/detect', detectAILikelihood)
 app.use('/api/ai', aiRoutes)
 app.use('/api/history', historyRoutes)
 app.use('/api/humanize', humanizeRoutes)

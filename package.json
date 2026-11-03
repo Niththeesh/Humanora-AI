@@ -12,6 +12,10 @@
     "test": "npm test --prefix backend",
     "test:cache": "npm run test:cache --prefix backend",
     "test:security": "npm run test:security --prefix backend",
+    "test:qa": "npm run test:qa --prefix backend",
+    "test:samples": "npm run test:samples --prefix backend",
+    "test:quality": "npm run test:quality --prefix backend",
+    "test:diagnosis": "npm run test:diagnosis --prefix backend",
     "test:all": "npm run test:all --prefix backend"
   }
 }

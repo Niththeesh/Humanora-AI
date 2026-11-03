@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { transformText, getConfig, analyzeStudentVoice, reviewAcademicDraft } from '../controllers/aiController'
+import { transformText, getConfig, analyzeStudentVoice, reviewAcademicDraft, detectAILikelihood } from '../controllers/aiController'
 
 const router = Router()
 
@@ -8,6 +8,12 @@ const router = Router()
  * Primary text transformation endpoint using configured Gemini model or linguistic fallback
  */
 router.post('/transform', transformText)
+
+/**
+ * POST /api/ai/detect
+ * Evaluates text for AI writing patterns, burstiness, TTR, and formulaic markers
+ */
+router.post('/detect', detectAILikelihood)
 
 /**
  * POST /api/ai/analyze-voice
